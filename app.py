@@ -8,7 +8,7 @@ from flask import Flask, jsonify, render_template, request
 
 from analyzer import build_signals
 from backtest import run_backtest, get_calibration_summary
-from momentum import record_scan, compute_momentum, latest_momentum
+from momentum import record_scan, compute_momentum, latest_momentum, apply_momentum
 from resolution_tracker import check_resolutions, get_tracking_status
 
 app = Flask(__name__)
@@ -45,6 +45,7 @@ def api_scan():
     _last_result["meta"] = meta
 
     scan_id = record_scan(signals, meta)
+    apply_momentum(signals, scan_id)  # attaches per-whale trend + shifts signal_strength in place
     momentum = compute_momentum(scan_id)
 
     return jsonify({"signals": signals, "meta": meta, "momentum": momentum})

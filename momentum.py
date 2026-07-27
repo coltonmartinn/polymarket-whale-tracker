@@ -6,7 +6,15 @@ This is the piece that turns a single snapshot into a time series.
 
 from db import get_conn, now_iso
 
-MIN_MOVE_USD = 250  # ignore noise-level position changes below this
+MIN_MOVE_USD = 250  # ignore noise-level position changes below this, for the Momentum-tab event feed
+
+# Per-row trend labeling (every whale gets one of these, not just the ones
+# that moved enough to make the event feed above).
+STABLE_MIN_ABS = 250    # a move smaller than this is never "increasing"/"decreasing"
+STABLE_MIN_PCT = 0.05   # ...nor is a move smaller than 5% of the prior position
+
+BUCKET_ORDER = ["Low", "Medium", "High", "Very High"]
+MOMENTUM_SHIFT_THRESHOLD = 0.25  # net momentum as a fraction of current whale $ needed to shift a bucket
 
 
 def record_scan(signals, meta):
@@ -157,3 +165,80 @@ def latest_momentum():
     if row is None:
         return {"has_previous": False, "events": []}
     return compute_momentum(row["id"])
+
+
+def classify_trend(delta_usd, prior_usd):
+    """
+    Label a single whale's position change. Unlike compute_momentum's event
+    feed (which only lists moves past a flat $250 filter worth surfacing as
+    an event), every whale gets exactly one of these labels, always.
+    """
+    if prior_usd is None:
+        return "new"
+    threshold = max(STABLE_MIN_ABS, STABLE_MIN_PCT * prior_usd)
+    if delta_usd > threshold:
+        return "increasing"
+    if delta_usd < -threshold:
+        return "decreasing"
+    return "stable"
+
+
+def apply_momentum(signals, scan_id):
+    """
+    Mutates `signals` in place (the shape build_signals()/analyzer.py
+    produces: a list of per-outcome dicts each with a "whales" list):
+
+      - attaches w["trend"] to every whale ("new"/"increasing"/"decreasing"/"stable")
+      - lets net momentum since the previous scan shift (not replace) each
+        outcome's signal_strength bucket by at most one level, recording the
+        pre-shift value as base_signal_strength and the shift direction (if
+        any) as momentum_shifted
+
+    Degrades gracefully when there's no previous scan (first-ever run):
+    every whale is labeled "new", momentum_pct is 0, and no bucket shifts.
+    """
+    with get_conn() as conn:
+        prev_id = _previous_scan_id(conn, scan_id)
+        prev_rows = {}
+        if prev_id is not None:
+            prev_rows = {
+                (r["clob_token_id"], r["wallet"]): r["usd_value"]
+                for r in conn.execute("SELECT * FROM snapshots WHERE scan_id = ?", (prev_id,))
+            }
+
+    for s in signals:
+        token_id = s["clob_token_id"]
+        net_momentum = 0.0
+
+        for w in s["whales"]:
+            prior_usd = prev_rows.get((token_id, w["wallet"]))
+            delta = w["usd_value"] - (prior_usd or 0)
+            w["trend"] = classify_trend(delta, prior_usd)
+            if w["trend"] in ("new", "increasing", "decreasing"):
+                net_momentum += delta
+
+        if prev_id is not None:
+            current_wallets = {w["wallet"] for w in s["whales"]}
+            exited_usd = sum(
+                usd for (tok, wallet), usd in prev_rows.items()
+                if tok == token_id and wallet not in current_wallets
+            )
+            net_momentum -= exited_usd
+
+        whale_usd_total = s.get("whale_usd_total") or 0
+        momentum_pct = (net_momentum / whale_usd_total) if whale_usd_total else 0.0
+        s["momentum_pct"] = round(momentum_pct, 4)
+        s["momentum_shifted"] = None
+
+        if "signal_strength" in s:
+            s["base_signal_strength"] = s["signal_strength"]
+            if prev_id is not None and s["signal_strength"] in BUCKET_ORDER:
+                idx = BUCKET_ORDER.index(s["signal_strength"])
+                if momentum_pct >= MOMENTUM_SHIFT_THRESHOLD and idx < len(BUCKET_ORDER) - 1:
+                    s["signal_strength"] = BUCKET_ORDER[idx + 1]
+                    s["momentum_shifted"] = "up"
+                elif momentum_pct <= -MOMENTUM_SHIFT_THRESHOLD and idx > 0:
+                    s["signal_strength"] = BUCKET_ORDER[idx - 1]
+                    s["momentum_shifted"] = "down"
+
+    return signals

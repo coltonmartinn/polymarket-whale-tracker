@@ -367,6 +367,22 @@ body {
 .momentum-type.type-decreased { color: var(--high); background: rgba(226,160,63,0.15); }
 .momentum-type.type-exited { color: var(--veryhigh); background: var(--danger-bg); }
 
+.trend-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 100px;
+  margin-top: 3px;
+  width: fit-content;
+}
+.trend-tag.trend-new { color: var(--accent); background: var(--accent-dim); }
+.trend-tag.trend-increasing { color: var(--favorite); background: var(--favorite-bg); }
+.trend-tag.trend-decreasing { color: var(--high); background: rgba(226,160,63,0.15); }
+.trend-tag.trend-stable { color: var(--text-faint); background: rgba(140,150,165,0.15); }
+
 .calib-stats-row {
   display: flex;
   gap: 24px;

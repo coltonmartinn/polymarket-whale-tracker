@@ -13,6 +13,8 @@ const sortBySelect = document.getElementById("sort-by");
 const typeFilterSelect = document.getElementById("type-filter");
 const searchInput = document.getElementById("search");
 
+const TREND_LABELS = { new: "New", increasing: "Increasing", decreasing: "Decreasing", stable: "Stable" };
+
 let currentSignals = [];
 const PAGE_SIZE = 30;
 let visibleCount = PAGE_SIZE;
@@ -148,6 +150,11 @@ function renderResults() {
     const strengthBadge = node.querySelector(".badge-strength");
     strengthBadge.textContent = s.signal_strength + " signal";
     strengthBadge.classList.add(strengthClass(s.signal_strength));
+    if (s.momentum_shifted) {
+      const arrow = s.momentum_shifted === "up" ? " ▲" : " ▼";
+      strengthBadge.textContent += arrow;
+      strengthBadge.title = `Shifted ${s.momentum_shifted} from ${s.base_signal_strength} on whale momentum since the last scan (${s.momentum_pct >= 0 ? "+" : ""}${(s.momentum_pct * 100).toFixed(0)}%).`;
+    }
 
     node.querySelector(".card-question").textContent = s.market;
     node.querySelector(".card-outcome").innerHTML = `Betting on <strong>${s.outcome}</strong>`;
@@ -159,6 +166,13 @@ function renderResults() {
     node.querySelector(".stat-liq-pct").textContent = `${s.pct_of_liquidity}%`;
     node.querySelector(".stat-top-wallet").textContent =
       `${shortWallet(s.top_whale.wallet)} (${formatUsd(s.top_whale.usd_value)})`;
+    const trendEl = node.querySelector(".stat-top-wallet-trend");
+    if (s.top_whale.trend) {
+      trendEl.textContent = TREND_LABELS[s.top_whale.trend] || s.top_whale.trend;
+      trendEl.className = "trend-tag trend-" + s.top_whale.trend;
+    } else {
+      trendEl.classList.add("hidden");
+    }
 
     node.querySelector(".card-recommendation").textContent = s.recommendation;
 
