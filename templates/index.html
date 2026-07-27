@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Whale Signal Scanner</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <span class="brand-mark">&#9673;</span>
+        <div>
+          <h1>Whale Signal Scanner</h1>
+          <p class="subtitle">Near-certain Polymarket outcomes where large wallets have real money down</p>
+        </div>
+      </div>
+      <button id="scan-btn" class="btn-primary">Scan Market</button>
+    </div>
+  </header>
+
+  <div class="disclaimer">
+    Informational only, not financial advice. Data is public on-chain wallet activity from Polymarket Global.
+    "Implied probability" is the market's own price &mdash; this tool does not predict outcomes, it surfaces where whale money sits relative to that price.
+  </div>
+
+  <main class="container">
+    <section class="controls" id="controls">
+      <div class="control">
+        <label for="price-threshold">Certainty threshold</label>
+        <input type="range" id="price-threshold" min="50" max="99" value="95" />
+        <span class="control-value" id="price-threshold-val">&ge; 95%</span>
+      </div>
+      <div class="control">
+        <label for="min-whale">Min whale position</label>
+        <select id="min-whale">
+          <option value="500">$500+</option>
+          <option value="1000" selected>$1,000+</option>
+          <option value="5000">$5,000+</option>
+          <option value="25000">$25,000+</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="max-markets">Markets to scan</label>
+        <select id="max-markets">
+          <option value="100">100 (fast)</option>
+          <option value="200" selected>200</option>
+          <option value="400">400</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="sort-by">Sort by</label>
+        <select id="sort-by">
+          <option value="score" selected>Signal strength</option>
+          <option value="whale_usd_total">Whale $ total</option>
+          <option value="implied_probability">Implied probability</option>
+          <option value="pct_of_liquidity">% of market liquidity</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="type-filter">Show</label>
+        <select id="type-filter">
+          <option value="all" selected>Favorites + Longshots</option>
+          <option value="favorite">Favorites only</option>
+          <option value="longshot">Longshots only</option>
+        </select>
+      </div>
+      <div class="control control-search">
+        <label for="search">Search</label>
+        <input type="text" id="search" placeholder="Search markets&hellip;" />
+      </div>
+    </section>
+
+    <section id="status" class="status hidden"></section>
+
+    <section id="summary" class="summary hidden"></section>
+
+    <section id="results" class="results"></section>
+
+    <section id="empty-state" class="empty-state">
+      <p>No scan yet. Click <strong>Scan Market</strong> to pull live data from Polymarket.</p>
+      <p class="empty-hint">A full scan of 200 markets typically takes 15&ndash;30 seconds.</p>
+    </section>
+  </main>
+
+  <template id="signal-card-template">
+    <article class="card">
+      <div class="card-header">
+        <span class="badge badge-type"></span>
+        <span class="badge badge-strength"></span>
+      </div>
+      <h3 class="card-question"></h3>
+      <div class="card-outcome"></div>
+      <div class="card-stats">
+        <div class="stat">
+          <span class="stat-label">Implied probability</span>
+          <span class="stat-value stat-prob"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">$100 pays</span>
+          <span class="stat-value stat-payout"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Whale $ total</span>
+          <span class="stat-value stat-whale-usd"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Whale wallets</span>
+          <span class="stat-value stat-whale-count"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label" title="Whale $ as a share of visible order-book depth. Over 100% means whale holdings exceed what's currently on the book -- a sign the position would be hard to exit quickly.">% of book liquidity</span>
+          <span class="stat-value stat-liq-pct"></span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Top wallet</span>
+          <span class="stat-value stat-top-wallet"></span>
+        </div>
+      </div>
+      <p class="card-recommendation"></p>
+      <a class="card-link" href="#" target="_blank" rel="noopener">View market on Polymarket &#8594;</a>
+    </article>
+  </template>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
