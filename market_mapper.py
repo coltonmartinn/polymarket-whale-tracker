@@ -20,16 +20,43 @@ import polymarket_us_client as pm_us
 from db import get_conn, now_iso
 
 DATE_WINDOW_DAYS = 21  # candidate end dates must fall within this many days of each other
-MIN_TEXT_SIMILARITY = 0.5  # below this, don't even surface as a candidate
+# Verified live (2026-07-27): Global questions are full sentences ("Will
+# Republicans win the House in the 2026 midterms?") while US titles are
+# compact noun phrases ("U.S House Midterm Winner") -- genuinely matching
+# pairs score 0.24-0.35 on raw token overlap, well below what a naive
+# threshold would treat as a match. 0.5 was tuned against that mistaken
+# assumption; lowered after checking real pairs, with the date-proximity
+# check (above) as the safety net against a looser text bar.
+MIN_TEXT_SIMILARITY = 0.32
 MAX_CANDIDATES_PER_MARKET = 5
 
-_STOPWORDS = {"will", "the", "a", "an", "to", "in", "on", "of", "for", "by", "be", "is", "at", "and", "or"}
+_STOPWORDS = {
+    "will", "the", "a", "an", "to", "in", "on", "of", "for", "by", "be", "is", "at", "and", "or",
+    # Verified live (2026-07-27): nearly every Global question ends "...by
+    # end of 2026" or similar -- without dropping this boilerplate, two
+    # completely unrelated questions ("Will China invade Taiwan..." vs "Who
+    # will Trump meet with...") scored 0.34 similarity purely off sharing
+    # "end"/"2026", nearly clearing the threshold. Real date matching is
+    # already handled separately via endDate proximity (date_gap_days), so
+    # a year mentioned in the text itself is redundant here, not signal.
+    "end", "within", "before", "after", "during", "year",
+}
 
 
 def _normalize_tokens(text):
     text = (text or "").lower()
     text = re.sub(r"[^a-z0-9\s]", " ", text)
-    return [t for t in text.split() if t and t not in _STOPWORDS]
+    tokens = [t for t in text.split() if t and t not in _STOPWORDS]
+    # Crude stemming so "midterm"/"midterms", "election"/"elections" etc.
+    # count as the same token -- without this, plurals alone can sink an
+    # otherwise-strong match. Drops 1-2 char fragments (e.g. "U.S."
+    # splitting into stray "u"/"s" tokens after punctuation stripping) and
+    # bare 4-digit years (see _STOPWORDS note above) -- neither is signal.
+    return [
+        t[:-1] if t.endswith("s") and len(t) > 4 else t
+        for t in tokens
+        if len(t) > 2 and not (len(t) == 4 and t.isdigit())
+    ]
 
 
 def _text_similarity(a, b):

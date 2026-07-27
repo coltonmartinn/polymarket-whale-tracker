@@ -205,7 +205,7 @@ function renderResults() {
       link.classList.add("hidden");
     }
 
-    node.querySelector(".card-demo-bet-btn").addEventListener("click", () => placeDemoBet(s));
+    wireDemoBetForm(node, s);
 
     resultsEl.appendChild(node);
   }
@@ -728,37 +728,71 @@ function renderMapping(markets) {
 
 document.getElementById("demo-refresh-btn").addEventListener("click", fetchDemoPortfolios);
 
-async function placeDemoBet(signal) {
-  const input = window.prompt(
-    `Demo bet on "${signal.market}" — ${signal.outcome} @ ${(signal.implied_probability * 100).toFixed(1)}%\nStake amount (fake $):`,
-    "100"
-  );
-  if (input === null) return;
-  const stake = Number(input);
-  if (!Number.isFinite(stake) || stake <= 0) {
-    window.alert("Enter a positive dollar amount.");
-    return;
-  }
-  try {
-    const resp = await fetch("/api/demo/manual/bet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        condition_id: signal.condition_id,
-        clob_token_id: signal.clob_token_id,
-        market_question: signal.market,
-        slug: signal.slug,
-        outcome_name: signal.outcome,
-        entry_price: signal.implied_probability,
-        stake_usd: stake,
-      }),
-    });
-    const data = await resp.json();
-    if (!resp.ok || !data.ok) throw new Error(data.error || `Request failed (${resp.status})`);
-    window.alert(`Placed: $${stake.toLocaleString()} on "${signal.outcome}".`);
-  } catch (err) {
-    window.alert(`Couldn't place demo bet: ${err.message}`);
-  }
+function wireDemoBetForm(node, signal) {
+  const openBtn = node.querySelector(".card-demo-bet-btn");
+  const form = node.querySelector(".demo-bet-form");
+  const input = node.querySelector(".demo-bet-input");
+  const confirmBtn = node.querySelector(".demo-bet-confirm-btn");
+  const cancelBtn = node.querySelector(".demo-bet-cancel-btn");
+  const msg = node.querySelector(".demo-bet-msg");
+
+  openBtn.addEventListener("click", () => {
+    form.classList.remove("hidden");
+    openBtn.classList.add("hidden");
+    msg.textContent = "";
+    msg.classList.remove("error");
+    input.focus();
+    input.select();
+  });
+
+  cancelBtn.addEventListener("click", () => {
+    form.classList.add("hidden");
+    openBtn.classList.remove("hidden");
+  });
+
+  const submit = async () => {
+    const stake = Number(input.value);
+    if (!Number.isFinite(stake) || stake <= 0) {
+      msg.textContent = "Enter a positive amount.";
+      msg.classList.add("error");
+      return;
+    }
+    confirmBtn.disabled = true;
+    msg.classList.remove("error");
+    msg.textContent = "Placing…";
+    try {
+      const resp = await fetch("/api/demo/manual/bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          condition_id: signal.condition_id,
+          clob_token_id: signal.clob_token_id,
+          market_question: signal.market,
+          slug: signal.slug,
+          outcome_name: signal.outcome,
+          entry_price: signal.implied_probability,
+          stake_usd: stake,
+        }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || `Request failed (${resp.status})`);
+      msg.textContent = `Placed $${stake.toLocaleString()}.`;
+      confirmBtn.disabled = false;
+      setTimeout(() => {
+        form.classList.add("hidden");
+        openBtn.classList.remove("hidden");
+      }, 1200);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.classList.add("error");
+      confirmBtn.disabled = false;
+    }
+  };
+
+  confirmBtn.addEventListener("click", submit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submit();
+  });
 }
 
 async function fetchDemoPortfolios() {
