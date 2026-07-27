@@ -96,6 +96,7 @@ def extract_high_probability_outcomes(market, price_threshold):
                 "outcome_name": outcomes[i],
                 "price": p,
                 "clob_token_id": token_ids[i],
+                "end_date": market.get("endDate"),
             })
     return hits
 

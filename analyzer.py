@@ -95,6 +95,7 @@ def build_signals(
                 "slug": outcome["slug"],
                 "liquidity": outcome["liquidity"],
                 "volume": outcome["volume"],
+                "end_date": outcome["end_date"],
             }
 
     total_markets = len(flagged_by_market)
@@ -157,6 +158,7 @@ def build_signals(
                 "condition_id": condition_id,
                 "market": meta["question"],
                 "slug": meta["slug"],
+                "end_date": meta["end_date"],
                 # Verified live (2026-07-27): /event/{slug} 404s when slug is the
                 # market's own slug rather than its parent event's -- /market/{slug}
                 # resolves correctly in both the grouped-event and standalone cases.

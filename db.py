@@ -91,6 +91,17 @@ CREATE TABLE IF NOT EXISTS wallet_calls (
     UNIQUE(wallet, clob_token_id)
 );
 CREATE INDEX IF NOT EXISTS idx_wallet_calls_wallet ON wallet_calls(wallet);
+
+CREATE TABLE IF NOT EXISTS market_mappings (
+    condition_id TEXT PRIMARY KEY,
+    global_question TEXT,
+    global_slug TEXT,
+    us_market_id TEXT,
+    us_question TEXT,
+    us_slug TEXT,
+    similarity REAL,
+    confirmed_at TEXT
+);
 """
 
 

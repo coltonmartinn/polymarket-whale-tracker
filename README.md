@@ -20,7 +20,9 @@ Note: Polymarket Global is geo-blocked to US persons for trading. Polymarket US 
 - `resolution_tracker.py` -- checks previously-flagged markets for resolution and records whether the whale-backed outcome won, building a live/forward version of the calibration check from our own scans. Also tags every wallet that held the resolved position, which feeds the whale leaderboard: per-wallet win rate across their resolved calls, ranked by a confidence-adjusted (Wilson lower bound) score rather than raw win rate, so a small sample can't outrank a proven one.
 - `scheduled_scan.py` -- entry point for the recurring background scan (see Automation below).
 - `app.py` -- Flask app serving the dashboard and its API endpoints.
-- `templates/`, `static/` -- the dashboard UI (four tabs: Scanner, Momentum, Calibration Backtest, Live Track Record -- the last of which also includes the whale leaderboard).
+- `polymarket_us_client.py` -- thin client for Polymarket US's public, no-auth Gateway API (`gateway.polymarket.us`) -- the separate, CFTC-regulated venue (QCX LLC) actually tradeable by US residents. As of writing its catalog is heavily sports-skewed (~87% of active markets in a 500-market sample), which is why callers default to non-sports categories only.
+- `market_mapper.py` -- human-reviewed mapping between Polymarket Global (where whale data lives) and Polymarket US (the tradeable venue). No shared IDs exist between the two, so this surfaces ranked candidate matches (question-text similarity + end-date proximity) for manual confirm/reject rather than auto-linking; confirmed mappings persist.
+- `templates/`, `static/` -- the dashboard UI (five tabs: Scanner, Momentum, Calibration Backtest, Live Track Record -- which also includes the whale leaderboard -- and Market Mapping).
 - `collector.py` -- standalone CLI script that does a one-off scan and writes `whale_positions.csv`, independent of the DB/dashboard.
 
 ## Setup
@@ -60,7 +62,11 @@ Register-ScheduledTask -TaskName "PolymarketWhaleScanner" -Action $action -Trigg
 
 Every resolved market rolls each holding wallet's outcome into `wallet_calls`. The Live Track Record tab's leaderboard aggregates that per-wallet, requires at least 3 resolved calls to qualify (fewer than that is noise, not signal), and ranks by a 95%-confidence Wilson lower bound rather than raw win rate -- a wallet that's 1-for-1 should not outrank one that's 20-for-25. Starts empty, like the rest of live tracking; grows as flagged markets resolve.
 
+## Global &harr; US market mapping
+
+Polymarket US has a genuine public API (`gateway.polymarket.us`, no auth required) with a market shape similar to Global's, but a completely separate catalog and no shared IDs -- and as of writing, the catalog is dominated by sports (~87% of a 500-market sample), with only politics/macro/culture as realistic overlap candidates with what the scanner flags. Because a wrong auto-match would silently poison anything built on top of it, the Market Mapping tab never auto-links: it surfaces ranked candidates (question-text similarity + end-date proximity, from your most recent scan) for you to confirm or reject by hand. Confirmed links persist and don't need re-reviewing.
+
 ## Roadmap
 
 - Let the live track record and whale leaderboard accumulate (both start empty by design) and compare whale-backed vs non-whale-backed near-certain markets' resolution accuracy, and individual whale win rates, once there's enough sample size.
-- Resolve market-mapping between Polymarket Global and Polymarket US before any execution logic is considered.
+- Build execution logic against confirmed Global&harr;US mappings, once enough of them exist to be useful.

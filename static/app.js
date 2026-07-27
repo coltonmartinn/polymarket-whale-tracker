@@ -229,6 +229,7 @@ const tabPanels = {
   momentum: document.getElementById("tab-momentum"),
   calibration: document.getElementById("tab-calibration"),
   "track-record": document.getElementById("tab-track-record"),
+  mapping: document.getElementById("tab-mapping"),
 };
 const loadedTabs = new Set(["scanner"]);
 
@@ -600,4 +601,121 @@ function renderWalletLeaderboard(data) {
   });
 
   walletLeaderboardContentEl.innerHTML = html;
+}
+
+// ---------- Market mapping ----------
+
+const mappingStatusEl = document.getElementById("mapping-status");
+const mappingContentEl = document.getElementById("mapping-content");
+
+document.getElementById("mapping-run-btn").addEventListener("click", runMarketMapping);
+
+async function runMarketMapping() {
+  const btn = document.getElementById("mapping-run-btn");
+  btn.disabled = true;
+  btn.textContent = "Searching Polymarket US…";
+  mappingStatusEl.classList.remove("hidden");
+  mappingStatusEl.classList.remove("error");
+  mappingStatusEl.classList.add("loading");
+  mappingStatusEl.textContent = "Fetching Polymarket US's non-sports markets and comparing against your last scan — this can take up to 15 seconds.";
+  try {
+    const resp = await fetch("/api/market_mapping");
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.message || `Request failed (${resp.status})`);
+    renderMapping(data.markets || []);
+  } catch (err) {
+    mappingContentEl.innerHTML = "";
+    mappingStatusEl.textContent = err.message;
+    mappingStatusEl.classList.add("error");
+    mappingStatusEl.classList.remove("hidden");
+  } finally {
+    mappingStatusEl.classList.remove("loading");
+    btn.disabled = false;
+    btn.textContent = "Find candidate matches (from last scan)";
+  }
+}
+
+function renderMapping(markets) {
+  if (!markets.length) {
+    mappingContentEl.innerHTML = "";
+    mappingStatusEl.textContent = "No flagged markets from the last scan.";
+    mappingStatusEl.classList.remove("hidden");
+    return;
+  }
+  mappingStatusEl.classList.add("hidden");
+
+  let html = "";
+  for (const m of markets) {
+    html += `<div class="mapping-card">
+      <div class="mapping-global">
+        <span class="mapping-label">Global</span>
+        <a href="${m.global_url || "#"}" target="_blank" rel="noopener">${escapeHtml(m.global_question)}</a>
+      </div>`;
+
+    if (m.confirmed) {
+      html += `<div class="mapping-row mapping-confirmed">
+        <span class="mapping-label">Confirmed US match</span>
+        <span>${escapeHtml(m.confirmed.us_question)}</span>
+        <button class="link-btn mapping-clear-btn" data-condition="${escapeHtml(m.condition_id)}">Clear</button>
+      </div>`;
+    } else if (m.candidates.length) {
+      for (const c of m.candidates) {
+        html += `<div class="mapping-row">
+          <span class="mapping-candidate-text">${escapeHtml(c.us_question)} <span class="mapping-sim">${(c.similarity * 100).toFixed(0)}% match${c.date_gap_days != null ? " &middot; " + c.date_gap_days + "d apart" : ""}</span></span>
+          <button class="btn-secondary mapping-confirm-btn"
+            data-condition="${escapeHtml(m.condition_id)}"
+            data-global-question="${escapeHtml(m.global_question)}"
+            data-global-slug="${escapeHtml(m.global_slug || "")}"
+            data-us-id="${escapeHtml(c.us_market_id)}"
+            data-us-question="${escapeHtml(c.us_question)}"
+            data-us-slug="${escapeHtml(c.us_slug || "")}"
+            data-similarity="${c.similarity}">Confirm</button>
+        </div>`;
+      }
+    } else {
+      html += `<p class="mapping-none">No candidate found on Polymarket US.</p>`;
+    }
+    html += `</div>`;
+  }
+  mappingContentEl.innerHTML = html;
+
+  mappingContentEl.querySelectorAll(".mapping-confirm-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await fetch("/api/market_mapping/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            condition_id: btn.dataset.condition,
+            global_question: btn.dataset.globalQuestion,
+            global_slug: btn.dataset.globalSlug,
+            us_market_id: btn.dataset.usId,
+            us_question: btn.dataset.usQuestion,
+            us_slug: btn.dataset.usSlug,
+            similarity: Number(btn.dataset.similarity),
+          }),
+        });
+        renderMapping(await (await fetch("/api/market_mapping")).json().then((d) => d.markets || []));
+      } catch (err) {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  mappingContentEl.querySelectorAll(".mapping-clear-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        await fetch("/api/market_mapping/clear", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ condition_id: btn.dataset.condition }),
+        });
+        renderMapping(await (await fetch("/api/market_mapping")).json().then((d) => d.markets || []));
+      } catch (err) {
+        btn.disabled = false;
+      }
+    });
+  });
 }

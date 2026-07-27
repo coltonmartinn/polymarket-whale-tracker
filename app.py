@@ -10,6 +10,7 @@ from analyzer import build_signals
 from backtest import run_backtest, get_calibration_summary
 from momentum import record_scan, compute_momentum, latest_momentum, apply_momentum
 from resolution_tracker import check_resolutions, get_tracking_status, get_wallet_leaderboard
+from market_mapper import build_mapping_candidates, confirm_mapping, clear_mapping
 
 app = Flask(__name__)
 
@@ -102,6 +103,37 @@ def api_wallet_leaderboard():
         return jsonify({"error": "invalid query parameters"}), 400
     min_calls = min(max(min_calls, 1), 50)
     return jsonify(get_wallet_leaderboard(min_calls=min_calls))
+
+
+@app.route("/api/market_mapping")
+def api_market_mapping():
+    if not _last_result["signals"]:
+        return jsonify({"error": "no_scan", "message": "Run a scan on the Scanner tab first."}), 400
+    return jsonify({"markets": build_mapping_candidates(_last_result["signals"])})
+
+
+@app.route("/api/market_mapping/confirm", methods=["POST"])
+def api_market_mapping_confirm():
+    body = request.get_json(silent=True) or {}
+    condition_id = body.get("condition_id")
+    us_market_id = body.get("us_market_id")
+    if not condition_id or not us_market_id:
+        return jsonify({"error": "missing_fields"}), 400
+    confirm_mapping(
+        condition_id, body.get("global_question"), body.get("global_slug"),
+        us_market_id, body.get("us_question"), body.get("us_slug"), body.get("similarity"),
+    )
+    return jsonify({"ok": True})
+
+
+@app.route("/api/market_mapping/clear", methods=["POST"])
+def api_market_mapping_clear():
+    body = request.get_json(silent=True) or {}
+    condition_id = body.get("condition_id")
+    if not condition_id:
+        return jsonify({"error": "missing_fields"}), 400
+    clear_mapping(condition_id)
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

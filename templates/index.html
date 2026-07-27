@@ -30,6 +30,7 @@
     <button class="tab-btn" data-tab="momentum">Momentum</button>
     <button class="tab-btn" data-tab="calibration">Calibration Backtest</button>
     <button class="tab-btn" data-tab="track-record">Live Track Record</button>
+    <button class="tab-btn" data-tab="mapping">Market Mapping</button>
   </nav>
 
   <main class="container">
@@ -155,6 +156,16 @@
       </section>
       <section id="wallet-leaderboard-status" class="status hidden"></section>
       <section id="wallet-leaderboard-content"></section>
+    </div>
+
+    <div id="tab-mapping" class="tab-panel hidden">
+      <section class="panel-intro">
+        <h2>Global &harr; US market mapping</h2>
+        <p>Whale data only exists on Polymarket Global (geo-blocked to US persons for trading); Polymarket US is the separate, CFTC-regulated venue you can actually trade on. The two have no shared market IDs, so this can't safely auto-link them &mdash; it compares your most recent scan's flagged markets against Polymarket US's non-sports listings by question-text similarity and end-date proximity, and surfaces best-guess candidates for you to confirm or reject by hand. Nothing is trusted until you confirm it, and confirmed links are remembered.</p>
+        <button id="mapping-run-btn" class="btn-secondary">Find candidate matches (from last scan)</button>
+      </section>
+      <section id="mapping-status" class="status hidden"></section>
+      <section id="mapping-content"></section>
     </div>
 
   </main>
