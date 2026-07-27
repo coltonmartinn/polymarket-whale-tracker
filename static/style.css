@@ -338,6 +338,32 @@ body {
 
 .momentum-list { display: flex; flex-direction: column; gap: 8px; }
 
+.momentum-groups { display: flex; flex-direction: column; gap: 26px; }
+.momentum-group-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.momentum-group-title::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--group-dot, var(--text-faint)); }
+.momentum-group[data-group="new_entry"] .momentum-group-title { --group-dot: var(--accent); }
+.momentum-group[data-group="increased"] .momentum-group-title { --group-dot: var(--favorite); }
+.momentum-group[data-group="decreased"] .momentum-group-title { --group-dot: var(--high); }
+.momentum-group[data-group="exited"] .momentum-group-title { --group-dot: var(--veryhigh); }
+.momentum-group-list { display: flex; flex-direction: column; gap: 8px; }
+.momentum-group-summary {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 18px;
+}
+.momentum-group-summary .momentum-group-title { margin-bottom: 4px; }
+.momentum-group-note { font-size: 13px; color: var(--text-faint); margin: 0; }
+
 .momentum-row {
   display: flex;
   align-items: center;

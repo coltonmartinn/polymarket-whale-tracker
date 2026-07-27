@@ -102,11 +102,32 @@
     <div id="tab-momentum" class="tab-panel hidden">
       <section class="panel-intro">
         <h2>Whale momentum</h2>
-        <p>Diffs the two most recent saved scans to show whales adding to, reducing, entering, or exiting near-certain positions. A scheduled task runs a scan every 30 minutes in the background, so this fills in even when the dashboard is closed.</p>
+        <p>Diffs the two most recent saved scans and groups every whale into one of four buckets: new here, piling on, backing off, or no change. A scheduled task runs a scan every 30 minutes in the background, so this fills in even when the dashboard is closed.</p>
         <button id="momentum-refresh-btn" class="btn-secondary">Refresh</button>
       </section>
       <section id="momentum-status" class="status hidden"></section>
-      <section id="momentum-list" class="momentum-list"></section>
+      <section id="momentum-groups" class="momentum-groups hidden">
+        <div class="momentum-group" data-group="new_entry">
+          <h3 class="momentum-group-title">New here</h3>
+          <div class="momentum-group-list"></div>
+        </div>
+        <div class="momentum-group" data-group="increased">
+          <h3 class="momentum-group-title">Piling on</h3>
+          <div class="momentum-group-list"></div>
+        </div>
+        <div class="momentum-group" data-group="decreased">
+          <h3 class="momentum-group-title">Backing off</h3>
+          <div class="momentum-group-list"></div>
+        </div>
+        <div class="momentum-group" data-group="exited">
+          <h3 class="momentum-group-title">Exited</h3>
+          <div class="momentum-group-list"></div>
+        </div>
+        <div class="momentum-group momentum-group-summary" data-group="unchanged">
+          <h3 class="momentum-group-title">No change</h3>
+          <p class="momentum-group-note"></p>
+        </div>
+      </section>
     </div>
 
     <div id="tab-calibration" class="tab-panel hidden">

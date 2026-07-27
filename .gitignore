@@ -6,4 +6,5 @@ whale_positions.csv
 flask_stdout.log
 flask_stderr.log
 scheduled_scan.log
+*.log
 *.db

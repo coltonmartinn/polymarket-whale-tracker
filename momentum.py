@@ -140,6 +140,13 @@ def compute_momentum(current_scan_id):
 
         events.sort(key=lambda e: abs(e["delta_usd"]), reverse=True)
 
+        moved_keys = {
+            (e["clob_token_id"], e["wallet"]) for e in events if e["type"] in ("increased", "decreased")
+        }
+        unchanged_count = sum(
+            1 for key in curr_rows if key in prev_rows and key not in moved_keys
+        )
+
         moved_token_ids = {
             e["clob_token_id"] for e in events if e["type"] in ("new_entry", "increased")
         }
@@ -155,6 +162,7 @@ def compute_momentum(current_scan_id):
             "previous_scan_id": prev_id,
             "current_scan_id": current_scan_id,
             "events": events,
+            "unchanged_count": unchanged_count,
         }
 
 

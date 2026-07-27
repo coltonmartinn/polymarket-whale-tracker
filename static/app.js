@@ -15,7 +15,7 @@ const minProfitabilityInput = document.getElementById("min-profitability");
 const minProfitabilityVal = document.getElementById("min-profitability-val");
 const searchInput = document.getElementById("search");
 
-const TREND_LABELS = { new: "New", increasing: "Increasing", decreasing: "Decreasing", stable: "Stable" };
+const TREND_LABELS = { new: "New", increasing: "Piling on", decreasing: "Backing off", stable: "No change" };
 
 let currentSignals = [];
 const PAGE_SIZE = 30;
@@ -242,8 +242,9 @@ tabButtons.forEach((btn) => {
 // ---------- Momentum ----------
 
 const momentumStatusEl = document.getElementById("momentum-status");
-const momentumListEl = document.getElementById("momentum-list");
+const momentumGroupsEl = document.getElementById("momentum-groups");
 const momentumRowTemplate = document.getElementById("momentum-row-template");
+const MOMENTUM_GROUP_CAP = 50; // per bucket; keeps a very busy scan from turning into an endless scroll
 
 document.getElementById("momentum-refresh-btn").addEventListener("click", fetchMomentum);
 
@@ -261,47 +262,82 @@ async function fetchMomentum() {
   }
 }
 
+// Four buckets the user thinks in, in plain short words. "exited" isn't
+// one of the four they asked for, but dropping a position to zero is too
+// different from trimming it to fold into "Backing off" -- kept as its
+// own small group instead of hidden.
 const MOMENTUM_LABELS = {
-  new_entry: "New position",
-  increased: "Added",
-  decreased: "Reduced",
+  new_entry: "New",
+  increased: "Piling on",
+  decreased: "Backing off",
   exited: "Exited",
 };
 
-function renderMomentum(data) {
-  momentumListEl.innerHTML = "";
+function renderMomentumRow(container, e) {
+  const node = momentumRowTemplate.content.cloneNode(true);
+  const badge = node.querySelector(".momentum-type");
+  badge.textContent = MOMENTUM_LABELS[e.type] || e.type;
+  badge.classList.add("type-" + e.type);
 
+  node.querySelector(".momentum-market").textContent = e.market;
+  node.querySelector(".momentum-detail").textContent =
+    `${e.outcome} · ${shortWallet(e.wallet)}${e.wallet_name ? " (" + e.wallet_name + ")" : ""} · now ${formatUsd(e.usd_value)}`;
+
+  const deltaEl = node.querySelector(".momentum-delta");
+  const sign = e.delta_usd >= 0 ? "+" : "-";
+  deltaEl.textContent = `${sign}${formatUsd(Math.abs(e.delta_usd))}`;
+  deltaEl.classList.add(e.delta_usd >= 0 ? "positive" : "negative");
+
+  container.appendChild(node);
+}
+
+function renderMomentum(data) {
   if (!data.has_previous) {
+    momentumGroupsEl.classList.add("hidden");
     momentumStatusEl.textContent = "Only one scan recorded so far — momentum needs at least two scans to diff against each other. Run another scan, or wait for the scheduled background scan (every 30 minutes).";
     momentumStatusEl.classList.remove("hidden");
     return;
   }
 
-  if (data.events.length === 0) {
-    momentumStatusEl.textContent = "No meaningful position changes ($250+) between the two most recent scans.";
-    momentumStatusEl.classList.remove("hidden");
-    return;
-  }
-
   momentumStatusEl.classList.add("hidden");
+  momentumGroupsEl.classList.remove("hidden");
 
-  for (const e of data.events.slice(0, 100)) {
-    const node = momentumRowTemplate.content.cloneNode(true);
-    const badge = node.querySelector(".momentum-type");
-    badge.textContent = MOMENTUM_LABELS[e.type] || e.type;
-    badge.classList.add("type-" + e.type);
-
-    node.querySelector(".momentum-market").textContent = e.market;
-    node.querySelector(".momentum-detail").textContent =
-      `${e.outcome} · ${shortWallet(e.wallet)}${e.wallet_name ? " (" + e.wallet_name + ")" : ""} · now ${formatUsd(e.usd_value)}`;
-
-    const deltaEl = node.querySelector(".momentum-delta");
-    const sign = e.delta_usd >= 0 ? "+" : "-";
-    deltaEl.textContent = `${sign}${formatUsd(Math.abs(e.delta_usd))}`;
-    deltaEl.classList.add(e.delta_usd >= 0 ? "positive" : "negative");
-
-    momentumListEl.appendChild(node);
+  const byType = { new_entry: [], increased: [], decreased: [], exited: [] };
+  for (const e of data.events) {
+    (byType[e.type] || byType.exited).push(e);
   }
+
+  for (const groupEl of momentumGroupsEl.querySelectorAll(".momentum-group[data-group]")) {
+    const type = groupEl.dataset.group;
+    if (type === "unchanged") continue; // handled separately below
+
+    const items = byType[type] || [];
+    const listEl = groupEl.querySelector(".momentum-group-list");
+    listEl.innerHTML = "";
+
+    if (items.length === 0) {
+      groupEl.classList.add("hidden");
+      continue;
+    }
+    groupEl.classList.remove("hidden");
+
+    for (const e of items.slice(0, MOMENTUM_GROUP_CAP)) {
+      renderMomentumRow(listEl, e);
+    }
+    if (items.length > MOMENTUM_GROUP_CAP) {
+      const more = document.createElement("p");
+      more.className = "momentum-group-note";
+      more.textContent = `+ ${items.length - MOMENTUM_GROUP_CAP} more`;
+      listEl.appendChild(more);
+    }
+  }
+
+  const unchangedEl = momentumGroupsEl.querySelector('.momentum-group[data-group="unchanged"]');
+  const count = data.unchanged_count || 0;
+  unchangedEl.querySelector(".momentum-group-note").textContent =
+    count > 0
+      ? `${count.toLocaleString()} whale position${count === 1 ? "" : "s"} held roughly steady — no notable change.`
+      : "No positions held steady between these two scans.";
 }
 
 // ---------- Calibration backtest ----------
