@@ -173,13 +173,18 @@ body {
 }
 
 .control select,
-.control input[type="text"] {
+.control input[type="text"],
+.control input[type="number"] {
   background: var(--bg-card);
   border: 1px solid var(--border);
   color: var(--text);
   padding: 8px 10px;
   border-radius: 7px;
   font-size: 13.5px;
+}
+
+.control input[type="number"] {
+  width: 90px;
 }
 
 .control input[type="range"] {

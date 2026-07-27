@@ -11,6 +11,8 @@ const minWhaleInput = document.getElementById("min-whale");
 const maxMarketsInput = document.getElementById("max-markets");
 const sortBySelect = document.getElementById("sort-by");
 const typeFilterSelect = document.getElementById("type-filter");
+const minProfitabilityInput = document.getElementById("min-profitability");
+const minProfitabilityVal = document.getElementById("min-profitability-val");
 const searchInput = document.getElementById("search");
 
 const TREND_LABELS = { new: "New", increasing: "Increasing", decreasing: "Decreasing", stable: "Stable" };
@@ -31,6 +33,11 @@ function resetPagingAndRender() {
 sortBySelect.addEventListener("change", resetPagingAndRender);
 typeFilterSelect.addEventListener("change", resetPagingAndRender);
 searchInput.addEventListener("input", resetPagingAndRender);
+minProfitabilityInput.addEventListener("input", () => {
+  const val = Math.max(Number(minProfitabilityInput.value) || 0, 0);
+  minProfitabilityVal.textContent = `≥ ${val}%`;
+  resetPagingAndRender();
+});
 
 scanBtn.addEventListener("click", runScan);
 
@@ -113,10 +120,15 @@ function renderResults() {
   const sortKey = sortBySelect.value;
   const typeFilter = typeFilterSelect.value;
   const query = searchInput.value.trim().toLowerCase();
+  // Percent return if the bet hits (profit per $100 staked) -- a payout
+  // percentage, never a dollar amount, so it stays meaningful regardless of
+  // how big or small a whale's position is.
+  const minProfitability = Math.max(Number(minProfitabilityInput.value) || 0, 0);
 
   let filtered = currentSignals.filter((s) => {
     if (typeFilter !== "all" && s.outcome_type !== typeFilter) return false;
     if (query && !s.market.toLowerCase().includes(query) && !s.outcome.toLowerCase().includes(query)) return false;
+    if ((s.payout_per_100 ?? 0) < minProfitability) return false;
     return true;
   });
 
