@@ -102,6 +102,26 @@ CREATE TABLE IF NOT EXISTS market_mappings (
     similarity REAL,
     confirmed_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS demo_bets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mode TEXT NOT NULL CHECK(mode IN ('manual', 'auto')),
+    condition_id TEXT NOT NULL,
+    clob_token_id TEXT NOT NULL,
+    market_question TEXT,
+    slug TEXT,
+    outcome_name TEXT,
+    entry_price REAL NOT NULL,
+    stake_usd REAL NOT NULL,
+    shares REAL NOT NULL,
+    placed_at TEXT NOT NULL,
+    resolved INTEGER DEFAULT 0,
+    resolved_won INTEGER,
+    payout_usd REAL,
+    resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_demo_bets_mode ON demo_bets(mode, resolved);
+CREATE INDEX IF NOT EXISTS idx_demo_bets_token ON demo_bets(clob_token_id, mode);
 """
 
 

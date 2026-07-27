@@ -11,6 +11,7 @@ from backtest import run_backtest, get_calibration_summary
 from momentum import record_scan, compute_momentum, latest_momentum, apply_momentum
 from resolution_tracker import check_resolutions, get_tracking_status, get_wallet_leaderboard
 from market_mapper import build_mapping_candidates, confirm_mapping, clear_mapping
+from demo_portfolio import place_bet, run_auto_follow, resolve_demo_bets, get_portfolio
 
 app = Flask(__name__)
 
@@ -48,8 +49,9 @@ def api_scan():
     scan_id = record_scan(signals, meta)
     apply_momentum(signals, scan_id)  # attaches per-whale trend + shifts signal_strength in place
     momentum = compute_momentum(scan_id)
+    auto_follow = run_auto_follow(signals)  # places demo bets on any newly-qualifying signal
 
-    return jsonify({"signals": signals, "meta": meta, "momentum": momentum})
+    return jsonify({"signals": signals, "meta": meta, "momentum": momentum, "auto_follow": auto_follow})
 
 
 @app.route("/api/last")
@@ -92,6 +94,7 @@ def api_track_record():
 @app.route("/api/track_record/refresh", methods=["POST"])
 def api_track_record_refresh():
     result = check_resolutions()
+    resolve_demo_bets()  # settle any demo positions whose market just resolved
     return jsonify({**result, "summary": get_calibration_summary(source="live_tracking")})
 
 
@@ -134,6 +137,27 @@ def api_market_mapping_clear():
         return jsonify({"error": "missing_fields"}), 400
     clear_mapping(condition_id)
     return jsonify({"ok": True})
+
+
+@app.route("/api/demo/<mode>")
+def api_demo_portfolio(mode):
+    portfolio = get_portfolio(mode)
+    if portfolio is None:
+        return jsonify({"error": "invalid_mode"}), 404
+    return jsonify(portfolio)
+
+
+@app.route("/api/demo/manual/bet", methods=["POST"])
+def api_demo_manual_bet():
+    body = request.get_json(silent=True) or {}
+    required = ["condition_id", "clob_token_id", "market_question", "outcome_name", "entry_price", "stake_usd"]
+    if not all(body.get(k) is not None for k in required):
+        return jsonify({"ok": False, "error": "missing_fields"}), 400
+    result = place_bet(
+        "manual", body["condition_id"], body["clob_token_id"], body["market_question"],
+        body.get("slug"), body["outcome_name"], body["entry_price"], body["stake_usd"],
+    )
+    return jsonify(result), (200 if result["ok"] else 400)
 
 
 if __name__ == "__main__":

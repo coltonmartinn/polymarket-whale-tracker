@@ -22,7 +22,8 @@ Note: Polymarket Global is geo-blocked to US persons for trading. Polymarket US 
 - `app.py` -- Flask app serving the dashboard and its API endpoints.
 - `polymarket_us_client.py` -- thin client for Polymarket US's public, no-auth Gateway API (`gateway.polymarket.us`) -- the separate, CFTC-regulated venue (QCX LLC) actually tradeable by US residents. As of writing its catalog is heavily sports-skewed (~87% of active markets in a 500-market sample), which is why callers default to non-sports categories only.
 - `market_mapper.py` -- human-reviewed mapping between Polymarket Global (where whale data lives) and Polymarket US (the tradeable venue). No shared IDs exist between the two, so this surfaces ranked candidate matches (question-text similarity + end-date proximity) for manual confirm/reject rather than auto-linking; confirmed mappings persist.
-- `templates/`, `static/` -- the dashboard UI (five tabs: Scanner, Momentum, Calibration Backtest, Live Track Record -- which also includes the whale leaderboard -- and Market Mapping).
+- `demo_portfolio.py` -- two fake-money, $10,000-start paper-trading portfolios (no real funds involved). Manual bets are placed by hand from the Scanner tab; Auto-follow mechanically bets a fixed $250 on the first time any signal reaches High/Very High strength, capped at 5 new bets per scan so one scan's 100+ qualifying signals can't spend the whole balance at once. Positions settle by piggybacking on `flagged_markets.resolved` -- no extra API calls.
+- `templates/`, `static/` -- the dashboard UI (six tabs: Scanner, Momentum, Calibration Backtest, Live Track Record -- which also includes the whale leaderboard -- Market Mapping, and Demo Portfolio).
 - `collector.py` -- standalone CLI script that does a one-off scan and writes `whale_positions.csv`, independent of the DB/dashboard.
 
 ## Setup
@@ -65,6 +66,10 @@ Every resolved market rolls each holding wallet's outcome into `wallet_calls`. T
 ## Global &harr; US market mapping
 
 Polymarket US has a genuine public API (`gateway.polymarket.us`, no auth required) with a market shape similar to Global's, but a completely separate catalog and no shared IDs -- and as of writing, the catalog is dominated by sports (~87% of a 500-market sample), with only politics/macro/culture as realistic overlap candidates with what the scanner flags. Because a wrong auto-match would silently poison anything built on top of it, the Market Mapping tab never auto-links: it surfaces ranked candidates (question-text similarity + end-date proximity, from your most recent scan) for you to confirm or reject by hand. Confirmed links persist and don't need re-reviewing.
+
+## Demo portfolio
+
+Two independent fake-money portfolios ($10,000 starting balance each, no real funds) let you sanity-check betting behavior against live outcomes. **Manual**: click "Demo bet" on any card in the Scanner tab, choose a stake, and it's tracked until that market resolves. **Auto-follow**: mechanically places a fixed $250 bet the first time any signal reaches High/Very High strength -- a test of "would blindly following strong whale signals have made money" -- capped at 5 new bets per scan (best-scoring first) since a single scan can flag 100+ qualifying signals and would otherwise spend the whole balance in one shot. Positions are valued at cost, not marked-to-market, so nothing displayed claims an unrealized gain from a price that could still reverse before resolution.
 
 ## Roadmap
 

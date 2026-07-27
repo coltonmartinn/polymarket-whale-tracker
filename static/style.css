@@ -353,14 +353,26 @@ body {
   margin: 0;
 }
 
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+}
+
 .card-link {
   font-size: 13px;
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
-  margin-top: auto;
 }
 .card-link:hover { text-decoration: underline; }
+
+.card-demo-bet-btn { font-size: 13px; white-space: nowrap; }
+
+.positive { color: var(--favorite); }
+.negative { color: var(--veryhigh); }
 
 .momentum-list { display: flex; flex-direction: column; gap: 8px; }
 
@@ -576,6 +588,32 @@ body {
 .mapping-confirmed .mapping-label { color: var(--favorite); }
 
 .mapping-none { color: var(--text-faint); font-size: 13px; margin: 0; }
+
+.demo-portfolio {
+  margin-top: 28px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+
+.demo-portfolio-title { margin: 0 0 12px; }
+
+.demo-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  margin: 18px 0 8px;
+}
+
+.demo-positions {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 16px;
+}
+.demo-positions .mapping-none { padding: 10px 0; }
+
 
 .calib-legend {
   font-size: 11.5px;

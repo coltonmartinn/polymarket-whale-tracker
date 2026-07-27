@@ -205,6 +205,8 @@ function renderResults() {
       link.classList.add("hidden");
     }
 
+    node.querySelector(".card-demo-bet-btn").addEventListener("click", () => placeDemoBet(s));
+
     resultsEl.appendChild(node);
   }
 
@@ -230,6 +232,7 @@ const tabPanels = {
   calibration: document.getElementById("tab-calibration"),
   "track-record": document.getElementById("tab-track-record"),
   mapping: document.getElementById("tab-mapping"),
+  demo: document.getElementById("tab-demo"),
 };
 const loadedTabs = new Set(["scanner"]);
 
@@ -247,6 +250,7 @@ tabButtons.forEach((btn) => {
         fetchTrackRecord();
         fetchWalletLeaderboard();
       }
+      if (tab === "demo") fetchDemoPortfolios();
     }
   });
 });
@@ -718,4 +722,91 @@ function renderMapping(markets) {
       }
     });
   });
+}
+
+// ---------- Demo portfolio ----------
+
+document.getElementById("demo-refresh-btn").addEventListener("click", fetchDemoPortfolios);
+
+async function placeDemoBet(signal) {
+  const input = window.prompt(
+    `Demo bet on "${signal.market}" — ${signal.outcome} @ ${(signal.implied_probability * 100).toFixed(1)}%\nStake amount (fake $):`,
+    "100"
+  );
+  if (input === null) return;
+  const stake = Number(input);
+  if (!Number.isFinite(stake) || stake <= 0) {
+    window.alert("Enter a positive dollar amount.");
+    return;
+  }
+  try {
+    const resp = await fetch("/api/demo/manual/bet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        condition_id: signal.condition_id,
+        clob_token_id: signal.clob_token_id,
+        market_question: signal.market,
+        slug: signal.slug,
+        outcome_name: signal.outcome,
+        entry_price: signal.implied_probability,
+        stake_usd: stake,
+      }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || `Request failed (${resp.status})`);
+    window.alert(`Placed: $${stake.toLocaleString()} on "${signal.outcome}".`);
+  } catch (err) {
+    window.alert(`Couldn't place demo bet: ${err.message}`);
+  }
+}
+
+async function fetchDemoPortfolios() {
+  await Promise.all([fetchDemoPortfolio("manual"), fetchDemoPortfolio("auto")]);
+}
+
+async function fetchDemoPortfolio(mode) {
+  const statsEl = document.getElementById(`demo-${mode}-stats`);
+  const openEl = document.getElementById(`demo-${mode}-open`);
+  const resolvedEl = document.getElementById(`demo-${mode}-resolved`);
+  try {
+    const resp = await fetch(`/api/demo/${mode}`);
+    const data = await resp.json();
+    renderDemoPortfolio(mode, data, statsEl, openEl, resolvedEl);
+  } catch (err) {
+    statsEl.innerHTML = `<p class="mapping-none">Failed to load: ${err.message}</p>`;
+  }
+}
+
+function renderDemoPortfolio(mode, data, statsEl, openEl, resolvedEl) {
+  const pnlClass = data.realized_pnl > 0 ? "positive" : data.realized_pnl < 0 ? "negative" : "";
+  statsEl.innerHTML = `
+    <div class="metric"><span class="metric-value">${formatUsd(data.net_worth_at_cost)}</span><span class="metric-label">Net worth (at cost)</span></div>
+    <div class="metric"><span class="metric-value ${pnlClass}">${data.realized_pnl >= 0 ? "+" : ""}${formatUsd(data.realized_pnl)}</span><span class="metric-label">Realized P&amp;L</span></div>
+    <div class="metric"><span class="metric-value">${formatUsd(data.cash_available)}</span><span class="metric-label">Cash available</span></div>
+    <div class="metric"><span class="metric-value">${formatUsd(data.open_stake_total)}</span><span class="metric-label">At risk (open)</span></div>
+    <div class="metric"><span class="metric-value">${data.win_rate != null ? (data.win_rate * 100).toFixed(0) + "%" : "—"}</span><span class="metric-label">Win rate (n=${data.resolved_count})</span></div>
+  `;
+
+  if (!data.open_positions.length) {
+    openEl.innerHTML = `<p class="mapping-none">No open positions.</p>`;
+  } else {
+    openEl.innerHTML = data.open_positions.map((p) => `
+      <div class="mapping-row">
+        <span class="mapping-candidate-text">${escapeHtml(p.market_question)} &mdash; <strong>${escapeHtml(p.outcome_name)}</strong> <span class="mapping-sim">@ ${(p.entry_price * 100).toFixed(1)}%</span></span>
+        <span class="mapping-sim">${formatUsd(p.stake_usd)} staked</span>
+      </div>`).join("");
+  }
+
+  if (!data.resolved_positions.length) {
+    resolvedEl.innerHTML = `<p class="mapping-none">No resolved positions yet.</p>`;
+  } else {
+    resolvedEl.innerHTML = data.resolved_positions.map((p) => {
+      const net = p.payout_usd - p.stake_usd;
+      return `<div class="mapping-row">
+        <span class="mapping-candidate-text">${escapeHtml(p.market_question)} &mdash; <strong>${escapeHtml(p.outcome_name)}</strong> <span class="mapping-sim">${p.resolved_won ? "won" : "lost"}</span></span>
+        <span class="${net >= 0 ? "positive" : "negative"}">${net >= 0 ? "+" : ""}${formatUsd(net)}</span>
+      </div>`;
+    }).join("");
+  }
 }

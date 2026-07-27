@@ -31,6 +31,7 @@
     <button class="tab-btn" data-tab="calibration">Calibration Backtest</button>
     <button class="tab-btn" data-tab="track-record">Live Track Record</button>
     <button class="tab-btn" data-tab="mapping">Market Mapping</button>
+    <button class="tab-btn" data-tab="demo">Demo Portfolio</button>
   </nav>
 
   <main class="container">
@@ -168,6 +169,32 @@
       <section id="mapping-content"></section>
     </div>
 
+    <div id="tab-demo" class="tab-panel hidden">
+      <section class="panel-intro">
+        <h2>Demo portfolio</h2>
+        <p>Two fake-money portfolios, each starting at $10,000, so you can sanity-check betting behavior against live outcomes without risking anything real. <strong>Manual</strong> is bets you place by hand &mdash; click "Demo bet" on any card in the Scanner tab. <strong>Auto-follow</strong> mechanically places a fixed $250 bet the first time any signal reaches High or Very High strength, no clicking required &mdash; a test of "would blindly following strong whale signals have made money." A scan can flag 100+ qualifying signals at once, so auto-follow caps itself at 5 new bets per scan (best-scoring first) and fills in gradually rather than spending the whole balance in one shot. Positions are valued at cost, not marked-to-market: money only moves on resolution, so nothing here claims an unrealized gain from a price that could still reverse.</p>
+        <button id="demo-refresh-btn" class="btn-secondary">Refresh</button>
+      </section>
+
+      <section class="demo-portfolio">
+        <h3 class="demo-portfolio-title">Manual</h3>
+        <div id="demo-manual-stats" class="calib-stats-row"></div>
+        <div class="demo-title">Open positions</div>
+        <div id="demo-manual-open" class="demo-positions"></div>
+        <div class="demo-title">Resolved</div>
+        <div id="demo-manual-resolved" class="demo-positions"></div>
+      </section>
+
+      <section class="demo-portfolio">
+        <h3 class="demo-portfolio-title">Auto-follow</h3>
+        <div id="demo-auto-stats" class="calib-stats-row"></div>
+        <div class="demo-title">Open positions</div>
+        <div id="demo-auto-open" class="demo-positions"></div>
+        <div class="demo-title">Resolved</div>
+        <div id="demo-auto-resolved" class="demo-positions"></div>
+      </section>
+    </div>
+
   </main>
 
   <template id="signal-card-template">
@@ -210,7 +237,10 @@
         </div>
       </div>
       <p class="card-recommendation"></p>
-      <a class="card-link" href="#" target="_blank" rel="noopener">View market on Polymarket &#8594;</a>
+      <div class="card-footer">
+        <a class="card-link" href="#" target="_blank" rel="noopener">View market on Polymarket &#8594;</a>
+        <button class="link-btn card-demo-bet-btn">Demo bet &#128184;</button>
+      </div>
     </article>
   </template>
 
