@@ -175,6 +175,8 @@ function renderResults() {
     node.querySelector(".stat-payout").textContent = s.payout_per_100 != null ? `$${100 + s.payout_per_100}` : "—";
     node.querySelector(".stat-whale-usd").textContent = formatUsd(s.whale_usd_total);
     node.querySelector(".stat-whale-count").textContent = s.whale_count;
+    node.querySelector(".stat-total-holders").textContent =
+      s.total_holders != null ? `${s.total_holders}${s.total_holders_capped ? "+" : ""}` : "—";
     node.querySelector(".stat-liq-pct").textContent = `${s.pct_of_liquidity}%`;
     node.querySelector(".stat-top-wallet").textContent =
       `${shortWallet(s.top_whale.wallet)} (${formatUsd(s.top_whale.usd_value)})`;

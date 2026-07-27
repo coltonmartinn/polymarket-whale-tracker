@@ -15,6 +15,13 @@ import polymarket_client as pm
 
 MAX_HOLDER_WORKERS = 8
 
+# Verified live (2026-07-27): /holders has no separate "total count" endpoint,
+# but the returned count plateaus at the true total once the requested limit
+# exceeds it (tested up to 5000 with no cap or slowdown observed, edge-cached
+# by Cloudflare) -- so fetching a generous limit doubles as an exact holder
+# count for all but the very largest markets.
+HOLDER_FETCH_LIMIT = 500
+
 
 def _signal_strength(whale_usd_total, pct_of_liquidity):
     """
@@ -58,8 +65,8 @@ def _recommendation(outcome_type, outcome_name, price, whale_usd_total, whale_co
     return base + " No significant whale conviction found on this side yet."
 
 
-def _fetch_holders_for_market(condition_id, holders_per_market):
-    return condition_id, pm.get_top_holders(condition_id, limit=holders_per_market)
+def _fetch_holders_for_market(condition_id):
+    return condition_id, pm.get_top_holders(condition_id, limit=HOLDER_FETCH_LIMIT)
 
 
 def build_signals(
@@ -98,7 +105,7 @@ def build_signals(
     done = 0
     with ThreadPoolExecutor(max_workers=MAX_HOLDER_WORKERS) as pool:
         futures = [
-            pool.submit(_fetch_holders_for_market, cid, holders_per_market)
+            pool.submit(_fetch_holders_for_market, cid)
             for cid in flagged_by_market
         ]
         for fut in as_completed(futures):
@@ -114,6 +121,11 @@ def build_signals(
         meta = market_meta[condition_id]
         for outcome in outcomes:
             holders = holders_by_token.get(outcome["clob_token_id"], [])
+            # every wallet holding ANY position, not just whales -- "how many
+            # total people have this bet placed"
+            total_holders = len(holders)
+            total_holders_capped = total_holders >= HOLDER_FETCH_LIMIT
+
             whales = []
             for h in holders:
                 shares = float(h.get("amount", 0) or 0)
@@ -130,7 +142,12 @@ def build_signals(
                 continue
 
             whales.sort(key=lambda w: w["usd_value"], reverse=True)
+            # whale_count/whale_usd_total reflect every qualifying whale found
+            # in the full holder list, even though the displayed `whales`
+            # list below is truncated to holders_per_market for readability.
+            whale_count = len(whales)
             whale_usd_total = round(sum(w["usd_value"] for w in whales), 2)
+            whales = whales[:holders_per_market]
             liquidity = meta["liquidity"]
             pct_of_liquidity = (whale_usd_total / liquidity * 100) if liquidity > 0 else 0
             strength, score = _signal_strength(whale_usd_total, pct_of_liquidity)
@@ -140,7 +157,10 @@ def build_signals(
                 "condition_id": condition_id,
                 "market": meta["question"],
                 "slug": meta["slug"],
-                "polymarket_url": f"https://polymarket.com/event/{meta['slug']}" if meta["slug"] else None,
+                # Verified live (2026-07-27): /event/{slug} 404s when slug is the
+                # market's own slug rather than its parent event's -- /market/{slug}
+                # resolves correctly in both the grouped-event and standalone cases.
+                "polymarket_url": f"https://polymarket.com/market/{meta['slug']}" if meta["slug"] else None,
                 "clob_token_id": outcome["clob_token_id"],
                 "outcome": outcome["outcome_name"],
                 "outcome_type": outcome_type,
@@ -148,8 +168,10 @@ def build_signals(
                 "payout_per_100": round((1 / outcome["price"] - 1) * 100) if outcome["price"] > 0 else None,
                 "liquidity": round(liquidity, 2),
                 "volume": round(meta["volume"], 2),
-                "whale_count": len(whales),
+                "whale_count": whale_count,
                 "whale_usd_total": whale_usd_total,
+                "total_holders": total_holders,
+                "total_holders_capped": total_holders_capped,
                 "pct_of_liquidity": round(pct_of_liquidity, 1),
                 "top_whale": whales[0],
                 "whales": whales,
@@ -157,7 +179,7 @@ def build_signals(
                 "score": round(score, 2),
                 "recommendation": _recommendation(
                     outcome_type, outcome["outcome_name"], outcome["price"],
-                    whale_usd_total, len(whales), strength,
+                    whale_usd_total, whale_count, strength,
                 ),
             })
 
