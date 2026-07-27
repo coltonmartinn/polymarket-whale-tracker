@@ -41,21 +41,23 @@ minProfitabilityInput.addEventListener("input", () => {
 
 scanBtn.addEventListener("click", runScan);
 
-function setStatus(message, isError = false) {
+function setStatus(message, isError = false, isLoading = false) {
   statusEl.textContent = message;
   statusEl.classList.remove("hidden");
   statusEl.classList.toggle("error", isError);
+  statusEl.classList.toggle("loading", isLoading);
 }
 
 function clearStatus() {
   statusEl.classList.add("hidden");
+  statusEl.classList.remove("loading");
 }
 
 async function runScan() {
   scanBtn.disabled = true;
   scanBtn.textContent = "Scanning…";
   emptyStateEl.classList.add("hidden");
-  setStatus("Fetching active markets and whale positions from Polymarket… this can take 15–30 seconds.");
+  setStatus("Fetching active markets and whale positions from Polymarket… this can take 15–30 seconds.", false, true);
 
   const params = new URLSearchParams({
     price_threshold: (Number(priceThresholdInput.value) / 100).toFixed(2),
@@ -251,6 +253,7 @@ document.getElementById("momentum-refresh-btn").addEventListener("click", fetchM
 async function fetchMomentum() {
   momentumStatusEl.classList.remove("hidden");
   momentumStatusEl.classList.remove("error");
+  momentumStatusEl.classList.add("loading");
   momentumStatusEl.textContent = "Loading…";
   try {
     const resp = await fetch("/api/momentum");
@@ -259,6 +262,8 @@ async function fetchMomentum() {
   } catch (err) {
     momentumStatusEl.textContent = `Failed to load momentum: ${err.message}`;
     momentumStatusEl.classList.add("error");
+  } finally {
+    momentumStatusEl.classList.remove("loading");
   }
 }
 
@@ -350,6 +355,7 @@ document.getElementById("calibration-run-btn").addEventListener("click", runCali
 async function fetchCalibration() {
   calibrationStatusEl.classList.remove("hidden");
   calibrationStatusEl.classList.remove("error");
+  calibrationStatusEl.classList.add("loading");
   calibrationStatusEl.textContent = "Loading…";
   try {
     const resp = await fetch("/api/calibration");
@@ -358,6 +364,8 @@ async function fetchCalibration() {
   } catch (err) {
     calibrationStatusEl.textContent = `Failed to load calibration data: ${err.message}`;
     calibrationStatusEl.classList.add("error");
+  } finally {
+    calibrationStatusEl.classList.remove("loading");
   }
 }
 
@@ -367,6 +375,7 @@ async function runCalibrationBacktest() {
   btn.textContent = "Running backtest…";
   calibrationStatusEl.classList.remove("hidden");
   calibrationStatusEl.classList.remove("error");
+  calibrationStatusEl.classList.add("loading");
   calibrationStatusEl.textContent = "Sampling resolved markets and pulling price history — this takes 30–60 seconds.";
   try {
     const resp = await fetch("/api/calibration/run?max_markets=250&min_volume=5000", { method: "POST" });
@@ -377,6 +386,7 @@ async function runCalibrationBacktest() {
     calibrationStatusEl.textContent = `Backtest failed: ${err.message}`;
     calibrationStatusEl.classList.add("error");
   } finally {
+    calibrationStatusEl.classList.remove("loading");
     btn.disabled = false;
     btn.textContent = "Run new backtest (~30–60s)";
   }
@@ -457,6 +467,7 @@ document.getElementById("track-record-refresh-btn").addEventListener("click", re
 async function fetchTrackRecord() {
   trackRecordStatusEl.classList.remove("hidden");
   trackRecordStatusEl.classList.remove("error");
+  trackRecordStatusEl.classList.add("loading");
   trackRecordStatusEl.textContent = "Loading…";
   try {
     const resp = await fetch("/api/track_record");
@@ -465,6 +476,8 @@ async function fetchTrackRecord() {
   } catch (err) {
     trackRecordStatusEl.textContent = `Failed to load track record: ${err.message}`;
     trackRecordStatusEl.classList.add("error");
+  } finally {
+    trackRecordStatusEl.classList.remove("loading");
   }
 }
 
@@ -474,6 +487,7 @@ async function refreshTrackRecord() {
   btn.textContent = "Checking…";
   trackRecordStatusEl.classList.remove("hidden");
   trackRecordStatusEl.classList.remove("error");
+  trackRecordStatusEl.classList.add("loading");
   trackRecordStatusEl.textContent = "Checking flagged markets for new resolutions…";
   try {
     const resp = await fetch("/api/track_record/refresh", { method: "POST" });
@@ -488,6 +502,7 @@ async function refreshTrackRecord() {
     trackRecordStatusEl.textContent = `Refresh failed: ${err.message}`;
     trackRecordStatusEl.classList.add("error");
   } finally {
+    trackRecordStatusEl.classList.remove("loading");
     btn.disabled = false;
     btn.textContent = "Check for new resolutions";
   }

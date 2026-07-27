@@ -92,7 +92,16 @@ body {
 }
 .btn-primary:hover { filter: brightness(1.08); }
 .btn-primary:active { transform: scale(0.98); }
-.btn-primary:disabled { opacity: 0.6; cursor: default; }
+.btn-primary:disabled { opacity: 0.75; cursor: default; display: inline-flex; align-items: center; gap: 9px; }
+.btn-primary:disabled::before {
+  content: "";
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  border: 2px solid rgba(6,32,28,0.35);
+  border-top-color: #06201c;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 .disclaimer {
   max-width: 1200px;
@@ -208,6 +217,8 @@ body {
   margin-bottom: 16px;
 }
 .status.error { color: var(--veryhigh); border-color: var(--veryhigh); }
+.status.loading { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 .hidden { display: none !important; }
 
 .summary {
@@ -229,6 +240,8 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+.summary .metric-value { animation: pop-in 0.3s ease-out; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(3px) scale(0.96); } to { opacity: 1; transform: none; } }
 
 .empty-state {
   text-align: center;
@@ -271,9 +284,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: transform 0.12s ease, border-color 0.12s ease;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+  animation: card-in 0.28s ease-out backwards;
 }
-.card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
+@keyframes card-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+/* Stagger the first screenful so cards visibly cascade in rather than popping at once; beyond that the delay would just make later cards feel slow to appear. */
+.results .card:nth-child(1) { animation-delay: 0ms; }
+.results .card:nth-child(2) { animation-delay: 20ms; }
+.results .card:nth-child(3) { animation-delay: 40ms; }
+.results .card:nth-child(4) { animation-delay: 60ms; }
+.results .card:nth-child(5) { animation-delay: 80ms; }
+.results .card:nth-child(6) { animation-delay: 100ms; }
+.results .card:nth-child(7) { animation-delay: 120ms; }
+.results .card:nth-child(8) { animation-delay: 140ms; }
+.results .card:nth-child(9) { animation-delay: 160ms; }
+.results .card:nth-child(n+10) { animation-delay: 180ms; }
 
 .card-header { display: flex; gap: 8px; }
 
@@ -372,7 +398,9 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 16px;
+  transition: border-color 0.12s ease, transform 0.12s ease;
 }
+.momentum-row:hover { border-color: var(--accent); transform: translateX(2px); }
 
 .momentum-main { flex: 1; min-width: 0; }
 .momentum-market {
