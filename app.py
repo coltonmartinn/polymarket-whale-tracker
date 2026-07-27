@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template, request
 from analyzer import build_signals
 from backtest import run_backtest, get_calibration_summary
 from momentum import record_scan, compute_momentum, latest_momentum, apply_momentum
-from resolution_tracker import check_resolutions, get_tracking_status
+from resolution_tracker import check_resolutions, get_tracking_status, get_wallet_leaderboard
 
 app = Flask(__name__)
 
@@ -92,6 +92,16 @@ def api_track_record():
 def api_track_record_refresh():
     result = check_resolutions()
     return jsonify({**result, "summary": get_calibration_summary(source="live_tracking")})
+
+
+@app.route("/api/wallet_leaderboard")
+def api_wallet_leaderboard():
+    try:
+        min_calls = int(request.args.get("min_calls", 3))
+    except ValueError:
+        return jsonify({"error": "invalid query parameters"}), 400
+    min_calls = min(max(min_calls, 1), 50)
+    return jsonify(get_wallet_leaderboard(min_calls=min_calls))
 
 
 if __name__ == "__main__":

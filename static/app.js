@@ -118,6 +118,12 @@ function shortWallet(addr) {
   return addr.slice(0, 6) + "…" + addr.slice(-4);
 }
 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str == null ? "" : String(str);
+  return div.innerHTML;
+}
+
 function renderResults() {
   const sortKey = sortBySelect.value;
   const typeFilter = typeFilterSelect.value;
@@ -236,7 +242,10 @@ tabButtons.forEach((btn) => {
       loadedTabs.add(tab);
       if (tab === "momentum") fetchMomentum();
       if (tab === "calibration") fetchCalibration();
-      if (tab === "track-record") fetchTrackRecord();
+      if (tab === "track-record") {
+        fetchTrackRecord();
+        fetchWalletLeaderboard();
+      }
     }
   });
 });
@@ -498,6 +507,7 @@ async function refreshTrackRecord() {
       trackRecordStatusEl.textContent = `Checked ${data.checked} flagged markets — ${data.newly_resolved} newly resolved.`;
       trackRecordStatusEl.classList.remove("hidden");
     }
+    fetchWalletLeaderboard();
   } catch (err) {
     trackRecordStatusEl.textContent = `Refresh failed: ${err.message}`;
     trackRecordStatusEl.classList.add("error");
@@ -537,4 +547,57 @@ function renderTrackRecord(data) {
   if (longBuckets.length) html += renderBarSection("Longshots we flagged, by bucket", longBuckets, "longshot");
 
   trackRecordContentEl.innerHTML = html;
+}
+
+// ---------- Whale leaderboard ----------
+
+const walletLeaderboardStatusEl = document.getElementById("wallet-leaderboard-status");
+const walletLeaderboardContentEl = document.getElementById("wallet-leaderboard-content");
+
+async function fetchWalletLeaderboard() {
+  walletLeaderboardStatusEl.classList.remove("hidden");
+  walletLeaderboardStatusEl.classList.remove("error");
+  walletLeaderboardStatusEl.classList.add("loading");
+  walletLeaderboardStatusEl.textContent = "Loading…";
+  try {
+    const resp = await fetch("/api/wallet_leaderboard");
+    const data = await resp.json();
+    renderWalletLeaderboard(data);
+  } catch (err) {
+    walletLeaderboardStatusEl.textContent = `Failed to load leaderboard: ${err.message}`;
+    walletLeaderboardStatusEl.classList.add("error");
+  } finally {
+    walletLeaderboardStatusEl.classList.remove("loading");
+  }
+}
+
+function renderWalletLeaderboard(data) {
+  const rows = data.leaderboard || [];
+  if (!rows.length) {
+    walletLeaderboardContentEl.innerHTML = "";
+    const short = (data.wallets_tracked || 0) > 0
+      ? ` ${data.wallets_tracked} wallet(s) tracked so far, but none have reached ${data.min_calls || 3} resolved calls yet.`
+      : "";
+    walletLeaderboardStatusEl.textContent = `No wallets qualify yet.${short}`;
+    walletLeaderboardStatusEl.classList.remove("hidden");
+    return;
+  }
+
+  walletLeaderboardStatusEl.classList.add("hidden");
+
+  let html = `<p class="pending-note">${data.wallets_qualifying} of ${data.wallets_tracked} tracked wallets have &ge;${data.min_calls} resolved calls and are ranked below.</p>`;
+  rows.forEach((w, i) => {
+    const label = w.wallet_name ? `${shortWallet(w.wallet)} (${escapeHtml(w.wallet_name)})` : shortWallet(w.wallet);
+    const pct = Math.max(w.win_rate * 100, 0.5);
+    html += `
+      <div class="calib-bar-row wallet-row">
+        <span class="calib-bar-label wallet-rank">#${i + 1} ${label}</span>
+        <div class="calib-bar-track">
+          <div class="calib-bar-fill favorite" style="width: ${pct}%"></div>
+        </div>
+        <span class="calib-bar-meta">${(w.win_rate * 100).toFixed(0)}% (n=${w.n}) &middot; avg ${formatUsd(w.avg_usd)}</span>
+      </div>`;
+  });
+
+  walletLeaderboardContentEl.innerHTML = html;
 }

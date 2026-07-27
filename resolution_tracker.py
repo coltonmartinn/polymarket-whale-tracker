@@ -5,9 +5,15 @@ whale-backed outcome actually won -- this is the live, forward-looking twin
 of backtest.py's historical calibration check, built from our own scans
 instead of history, and specifically taggable by whether whale momentum was
 observed (source='live_tracking' in the same calibration_observations table).
+
+It also tags the individual wallets that were holding the resolved position
+(wallet_calls table), which is what powers the whale leaderboard: not just
+"was the whale-backed side right," but "which specific whales have a track
+record of being right."
 """
 
 import json
+import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
@@ -18,6 +24,7 @@ from db import get_conn, now_iso
 
 RESOLUTION_TOLERANCE = 0.02
 MAX_CHECK_WORKERS = 10
+DEFAULT_MIN_CALLS = 3  # wallets need at least this many resolved calls to appear on the leaderboard
 
 
 def _check_one(condition_id):
@@ -103,9 +110,88 @@ def check_resolutions():
                 (row["condition_id"], row["question"], row["outcome_name"], row["first_flagged_price"],
                  round(days_before, 3), won, row["first_flagged_at"]),
             )
+
+            # One row per wallet that was ever seen holding this resolved
+            # position, keyed on their most recent snapshot (final conviction
+            # level before resolution). This is what the leaderboard rolls up.
+            wallet_positions = {}
+            for snap in conn.execute(
+                "SELECT wallet, wallet_name, usd_value FROM snapshots WHERE clob_token_id = ? ORDER BY scan_id ASC",
+                (row["clob_token_id"],),
+            ):
+                wallet_positions[snap["wallet"]] = snap  # later rows overwrite -> latest per wallet
+            conn.executemany(
+                """INSERT OR IGNORE INTO wallet_calls
+                   (wallet, wallet_name, clob_token_id, condition_id, question, outcome_name, usd_value, won, resolved_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [
+                    (wp["wallet"], wp["wallet_name"], row["clob_token_id"], row["condition_id"],
+                     row["question"], row["outcome_name"], wp["usd_value"], won, resolved_at)
+                    for wp in wallet_positions.values()
+                ],
+            )
         newly_resolved += 1
 
     return {"checked": checked, "newly_resolved": newly_resolved, "still_pending": checked - newly_resolved}
+
+
+def _wilson_lower_bound(wins, n, z=1.96):
+    """
+    95%-confidence lower bound on win rate. Ranking by this instead of raw
+    win_rate is what keeps a 1-for-1 wallet from outranking a 20-for-25 one --
+    a small sample's raw rate is unreliable, and the lower bound discounts it
+    accordingly without throwing the wallet out entirely.
+    """
+    if n == 0:
+        return 0.0
+    phat = wins / n
+    z2 = z * z
+    denom = 1 + z2 / n
+    center = phat + z2 / (2 * n)
+    margin = z * math.sqrt((phat * (1 - phat) + z2 / (4 * n)) / n)
+    return (center - margin) / denom
+
+
+def get_wallet_leaderboard(min_calls=DEFAULT_MIN_CALLS, limit=25):
+    """
+    Roll up wallet_calls (one row per wallet per resolved market they held a
+    near-certain position in) into a per-wallet win rate, ranked by Wilson
+    lower bound so small samples don't dominate. Wallets below min_calls are
+    tracked but excluded from the ranked list -- not enough signal yet.
+    """
+    with get_conn() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT wallet, wallet_name, usd_value, won FROM wallet_calls"
+        ).fetchall()]
+
+    by_wallet = {}
+    for r in rows:
+        w = by_wallet.setdefault(r["wallet"], {
+            "wallet": r["wallet"], "wallet_name": "", "n": 0, "wins": 0, "total_usd": 0.0,
+        })
+        w["n"] += 1
+        w["wins"] += r["won"]
+        w["total_usd"] += r["usd_value"] or 0
+        if r["wallet_name"] and not w["wallet_name"]:
+            w["wallet_name"] = r["wallet_name"]
+
+    leaderboard = []
+    for w in by_wallet.values():
+        if w["n"] < min_calls:
+            continue
+        w["win_rate"] = round(w["wins"] / w["n"], 4)
+        w["avg_usd"] = round(w["total_usd"] / w["n"], 2)
+        w["confidence"] = round(_wilson_lower_bound(w["wins"], w["n"]), 4)
+        leaderboard.append(w)
+
+    leaderboard.sort(key=lambda w: w["confidence"], reverse=True)
+
+    return {
+        "leaderboard": leaderboard[:limit],
+        "min_calls": min_calls,
+        "wallets_tracked": len(by_wallet),
+        "wallets_qualifying": len(leaderboard),
+    }
 
 
 def get_tracking_status():

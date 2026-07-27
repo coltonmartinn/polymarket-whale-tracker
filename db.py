@@ -76,6 +76,21 @@ CREATE TABLE IF NOT EXISTS calibration_runs (
     markets_used INTEGER,
     observations INTEGER
 );
+
+CREATE TABLE IF NOT EXISTS wallet_calls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet TEXT NOT NULL,
+    wallet_name TEXT,
+    clob_token_id TEXT NOT NULL,
+    condition_id TEXT,
+    question TEXT,
+    outcome_name TEXT,
+    usd_value REAL,
+    won INTEGER,
+    resolved_at TEXT,
+    UNIQUE(wallet, clob_token_id)
+);
+CREATE INDEX IF NOT EXISTS idx_wallet_calls_wallet ON wallet_calls(wallet);
 """
 
 

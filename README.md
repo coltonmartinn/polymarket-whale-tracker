@@ -17,10 +17,10 @@ Note: Polymarket Global is geo-blocked to US persons for trading. Polymarket US 
 - `db.py` -- shared SQLite store (`whale_tracker.db`, gitignored): every scan's whale snapshots, flagged-market resolution status, and calibration observations.
 - `momentum.py` -- persists each scan and diffs it against the previous one to detect whales entering, adding to, reducing, or exiting near-certain positions.
 - `backtest.py` -- historical calibration backtest: samples resolved binary markets, pulls their final-15-days price history, and checks whether near-certain prices were actually right.
-- `resolution_tracker.py` -- checks previously-flagged markets for resolution and records whether the whale-backed outcome won, building a live/forward version of the calibration check from our own scans.
+- `resolution_tracker.py` -- checks previously-flagged markets for resolution and records whether the whale-backed outcome won, building a live/forward version of the calibration check from our own scans. Also tags every wallet that held the resolved position, which feeds the whale leaderboard: per-wallet win rate across their resolved calls, ranked by a confidence-adjusted (Wilson lower bound) score rather than raw win rate, so a small sample can't outrank a proven one.
 - `scheduled_scan.py` -- entry point for the recurring background scan (see Automation below).
 - `app.py` -- Flask app serving the dashboard and its API endpoints.
-- `templates/`, `static/` -- the dashboard UI (four tabs: Scanner, Momentum, Calibration Backtest, Live Track Record).
+- `templates/`, `static/` -- the dashboard UI (four tabs: Scanner, Momentum, Calibration Backtest, Live Track Record -- the last of which also includes the whale leaderboard).
 - `collector.py` -- standalone CLI script that does a one-off scan and writes `whale_positions.csv`, independent of the DB/dashboard.
 
 ## Setup
@@ -56,7 +56,11 @@ $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (Ne
 Register-ScheduledTask -TaskName "PolymarketWhaleScanner" -Action $action -Trigger $trigger
 ```
 
+## Whale leaderboard
+
+Every resolved market rolls each holding wallet's outcome into `wallet_calls`. The Live Track Record tab's leaderboard aggregates that per-wallet, requires at least 3 resolved calls to qualify (fewer than that is noise, not signal), and ranks by a 95%-confidence Wilson lower bound rather than raw win rate -- a wallet that's 1-for-1 should not outrank one that's 20-for-25. Starts empty, like the rest of live tracking; grows as flagged markets resolve.
+
 ## Roadmap
 
-- Let the live track record accumulate (it starts empty by design) and compare whale-backed vs non-whale-backed near-certain markets' resolution accuracy once there's enough sample size.
+- Let the live track record and whale leaderboard accumulate (both start empty by design) and compare whale-backed vs non-whale-backed near-certain markets' resolution accuracy, and individual whale win rates, once there's enough sample size.
 - Resolve market-mapping between Polymarket Global and Polymarket US before any execution logic is considered.
