@@ -184,3 +184,278 @@ function renderResults() {
     });
   }
 }
+
+// ---------- Tabs ----------
+
+const tabButtons = document.querySelectorAll(".tab-btn");
+const tabPanels = {
+  scanner: document.getElementById("tab-scanner"),
+  momentum: document.getElementById("tab-momentum"),
+  calibration: document.getElementById("tab-calibration"),
+  "track-record": document.getElementById("tab-track-record"),
+};
+const loadedTabs = new Set(["scanner"]);
+
+tabButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.tab;
+    tabButtons.forEach((b) => b.classList.toggle("active", b === btn));
+    Object.entries(tabPanels).forEach(([name, panel]) => panel.classList.toggle("hidden", name !== tab));
+
+    if (!loadedTabs.has(tab)) {
+      loadedTabs.add(tab);
+      if (tab === "momentum") fetchMomentum();
+      if (tab === "calibration") fetchCalibration();
+      if (tab === "track-record") fetchTrackRecord();
+    }
+  });
+});
+
+// ---------- Momentum ----------
+
+const momentumStatusEl = document.getElementById("momentum-status");
+const momentumListEl = document.getElementById("momentum-list");
+const momentumRowTemplate = document.getElementById("momentum-row-template");
+
+document.getElementById("momentum-refresh-btn").addEventListener("click", fetchMomentum);
+
+async function fetchMomentum() {
+  momentumStatusEl.classList.remove("hidden");
+  momentumStatusEl.classList.remove("error");
+  momentumStatusEl.textContent = "Loading…";
+  try {
+    const resp = await fetch("/api/momentum");
+    const data = await resp.json();
+    renderMomentum(data);
+  } catch (err) {
+    momentumStatusEl.textContent = `Failed to load momentum: ${err.message}`;
+    momentumStatusEl.classList.add("error");
+  }
+}
+
+const MOMENTUM_LABELS = {
+  new_entry: "New position",
+  increased: "Added",
+  decreased: "Reduced",
+  exited: "Exited",
+};
+
+function renderMomentum(data) {
+  momentumListEl.innerHTML = "";
+
+  if (!data.has_previous) {
+    momentumStatusEl.textContent = "Only one scan recorded so far — momentum needs at least two scans to diff against each other. Run another scan, or wait for the scheduled background scan (every 30 minutes).";
+    momentumStatusEl.classList.remove("hidden");
+    return;
+  }
+
+  if (data.events.length === 0) {
+    momentumStatusEl.textContent = "No meaningful position changes ($250+) between the two most recent scans.";
+    momentumStatusEl.classList.remove("hidden");
+    return;
+  }
+
+  momentumStatusEl.classList.add("hidden");
+
+  for (const e of data.events.slice(0, 100)) {
+    const node = momentumRowTemplate.content.cloneNode(true);
+    const badge = node.querySelector(".momentum-type");
+    badge.textContent = MOMENTUM_LABELS[e.type] || e.type;
+    badge.classList.add("type-" + e.type);
+
+    node.querySelector(".momentum-market").textContent = e.market;
+    node.querySelector(".momentum-detail").textContent =
+      `${e.outcome} · ${shortWallet(e.wallet)}${e.wallet_name ? " (" + e.wallet_name + ")" : ""} · now ${formatUsd(e.usd_value)}`;
+
+    const deltaEl = node.querySelector(".momentum-delta");
+    const sign = e.delta_usd >= 0 ? "+" : "-";
+    deltaEl.textContent = `${sign}${formatUsd(Math.abs(e.delta_usd))}`;
+    deltaEl.classList.add(e.delta_usd >= 0 ? "positive" : "negative");
+
+    momentumListEl.appendChild(node);
+  }
+}
+
+// ---------- Calibration backtest ----------
+
+const calibrationStatusEl = document.getElementById("calibration-status");
+const calibrationContentEl = document.getElementById("calibration-content");
+
+document.getElementById("calibration-run-btn").addEventListener("click", runCalibrationBacktest);
+
+async function fetchCalibration() {
+  calibrationStatusEl.classList.remove("hidden");
+  calibrationStatusEl.classList.remove("error");
+  calibrationStatusEl.textContent = "Loading…";
+  try {
+    const resp = await fetch("/api/calibration");
+    const data = await resp.json();
+    renderCalibration(data);
+  } catch (err) {
+    calibrationStatusEl.textContent = `Failed to load calibration data: ${err.message}`;
+    calibrationStatusEl.classList.add("error");
+  }
+}
+
+async function runCalibrationBacktest() {
+  const btn = document.getElementById("calibration-run-btn");
+  btn.disabled = true;
+  btn.textContent = "Running backtest…";
+  calibrationStatusEl.classList.remove("hidden");
+  calibrationStatusEl.classList.remove("error");
+  calibrationStatusEl.textContent = "Sampling resolved markets and pulling price history — this takes 30–60 seconds.";
+  try {
+    const resp = await fetch("/api/calibration/run?max_markets=250&min_volume=5000", { method: "POST" });
+    if (!resp.ok) throw new Error(`Request failed (${resp.status})`);
+    const data = await resp.json();
+    renderCalibration(data.summary);
+  } catch (err) {
+    calibrationStatusEl.textContent = `Backtest failed: ${err.message}`;
+    calibrationStatusEl.classList.add("error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Run new backtest (~30–60s)";
+  }
+}
+
+function bucketMidpoint(label) {
+  const [lo, hi] = label.replace("%", "").split("-").map(Number);
+  return (lo + hi) / 2;
+}
+
+function renderBarSection(title, buckets, side) {
+  let html = `<div class="calib-title">${title}</div>`;
+  for (const b of buckets) {
+    const target = bucketMidpoint(b.label);
+    const fillPct = Math.max(b.observed_win_rate * 100, 0.5);
+    html += `
+      <div class="calib-bar-row">
+        <span class="calib-bar-label">${b.label}</span>
+        <div class="calib-bar-track">
+          <div class="calib-bar-fill ${side}" style="width: ${fillPct}%"></div>
+          <div class="calib-bar-target" style="left: ${target}%"></div>
+        </div>
+        <span class="calib-bar-meta">${(b.observed_win_rate * 100).toFixed(1)}% hit &middot; n=${b.n}</span>
+      </div>`;
+  }
+  return html;
+}
+
+function renderCalibration(data) {
+  if (!data || !data.observations) {
+    calibrationContentEl.innerHTML = "";
+    calibrationStatusEl.textContent = "No backtest data yet. Click \"Run new backtest\" to sample resolved markets.";
+    calibrationStatusEl.classList.remove("hidden");
+    return;
+  }
+
+  calibrationStatusEl.classList.add("hidden");
+
+  const cl = data.call_level;
+  const favBuckets = data.buckets.filter((b) => bucketMidpoint(b.label) >= 50);
+  const longBuckets = data.buckets.filter((b) => bucketMidpoint(b.label) < 50);
+
+  let html = `<div class="calib-stats-row">
+    <div class="metric"><span class="metric-value">${(cl.favorite_accuracy * 100).toFixed(1)}%</span><span class="metric-label">Favorite accuracy (n=${cl.favorite_n} calls)</span></div>
+    <div class="metric"><span class="metric-value">${(cl.longshot_hit_rate * 100).toFixed(1)}%</span><span class="metric-label">Longshot hit rate (n=${cl.longshot_n} calls)</span></div>
+    <div class="metric"><span class="metric-value">${cl.brier_score}</span><span class="metric-label">Brier score (call-level, 0=perfect)</span></div>
+    <div class="metric"><span class="metric-value">${data.markets}</span><span class="metric-label">Distinct resolved markets</span></div>
+  </div>
+  <p class="calib-note">${cl.note} Raw point-level stats (below, ${data.observations} observations, Brier ${data.brier_score}) include every sampled price tick and will look more confident than the call-level numbers above — the call-level numbers are the fairer read.</p>`;
+
+  html += renderBarSection("Favorites (priced ≥95%) by bucket", favBuckets, "favorite");
+  html += renderBarSection("Longshots (priced ≤5%) by bucket", longBuckets, "longshot");
+  html += `<div class="calib-legend"><span class="tick-sample"></span>tick = bucket midpoint (perfect calibration); bar = actual observed win rate</div>`;
+
+  html += `<div class="calib-title">Accuracy by lead time before resolution</div>`;
+  for (const lt of data.by_lead_time) {
+    const shortLabel = lt.label.replace(" days before resolution", "d");
+    html += `
+      <div class="calib-bar-row">
+        <span class="calib-bar-label">${shortLabel}</span>
+        <div class="calib-bar-track">
+          <div class="calib-bar-fill favorite" style="width: ${lt.accuracy * 100}%"></div>
+        </div>
+        <span class="calib-bar-meta">${(lt.accuracy * 100).toFixed(1)}% &middot; n=${lt.n}</span>
+      </div>`;
+  }
+
+  calibrationContentEl.innerHTML = html;
+}
+
+// ---------- Live track record ----------
+
+const trackRecordStatusEl = document.getElementById("track-record-status");
+const trackRecordContentEl = document.getElementById("track-record-content");
+
+document.getElementById("track-record-refresh-btn").addEventListener("click", refreshTrackRecord);
+
+async function fetchTrackRecord() {
+  trackRecordStatusEl.classList.remove("hidden");
+  trackRecordStatusEl.classList.remove("error");
+  trackRecordStatusEl.textContent = "Loading…";
+  try {
+    const resp = await fetch("/api/track_record");
+    const data = await resp.json();
+    renderTrackRecord(data);
+  } catch (err) {
+    trackRecordStatusEl.textContent = `Failed to load track record: ${err.message}`;
+    trackRecordStatusEl.classList.add("error");
+  }
+}
+
+async function refreshTrackRecord() {
+  const btn = document.getElementById("track-record-refresh-btn");
+  btn.disabled = true;
+  btn.textContent = "Checking…";
+  trackRecordStatusEl.classList.remove("hidden");
+  trackRecordStatusEl.classList.remove("error");
+  trackRecordStatusEl.textContent = "Checking flagged markets for new resolutions…";
+  try {
+    const resp = await fetch("/api/track_record/refresh", { method: "POST" });
+    if (!resp.ok) throw new Error(`Request failed (${resp.status})`);
+    const data = await resp.json();
+    renderTrackRecord(data.summary ? { ...data.summary, tracking_status: data.summary.tracking_status } : data);
+    if (data.newly_resolved !== undefined) {
+      trackRecordStatusEl.textContent = `Checked ${data.checked} flagged markets — ${data.newly_resolved} newly resolved.`;
+      trackRecordStatusEl.classList.remove("hidden");
+    }
+  } catch (err) {
+    trackRecordStatusEl.textContent = `Refresh failed: ${err.message}`;
+    trackRecordStatusEl.classList.add("error");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Check for new resolutions";
+  }
+}
+
+function renderTrackRecord(data) {
+  const status = data.tracking_status || {};
+  let html = `<p class="pending-note">Tracking since ${status.tracking_since ? new Date(status.tracking_since).toLocaleString() : "—"} &middot; <strong>${status.resolved || 0}</strong> resolved &middot; <strong>${status.pending || 0}</strong> still pending.</p>`;
+
+  if (!data.observations) {
+    trackRecordContentEl.innerHTML = html;
+    if (!trackRecordStatusEl.textContent || trackRecordStatusEl.textContent === "Loading…") {
+      trackRecordStatusEl.textContent = "No flagged markets have resolved yet — check back after some time has passed, or click \"Check for new resolutions.\"";
+      trackRecordStatusEl.classList.remove("hidden");
+    }
+    return;
+  }
+
+  trackRecordStatusEl.classList.add("hidden");
+
+  const cl = data.call_level;
+  html += `<div class="calib-stats-row">
+    <div class="metric"><span class="metric-value">${cl.favorite_accuracy != null ? (cl.favorite_accuracy * 100).toFixed(1) + "%" : "—"}</span><span class="metric-label">Favorite accuracy (n=${cl.favorite_n})</span></div>
+    <div class="metric"><span class="metric-value">${cl.longshot_hit_rate != null ? (cl.longshot_hit_rate * 100).toFixed(1) + "%" : "—"}</span><span class="metric-label">Longshot hit rate (n=${cl.longshot_n})</span></div>
+    <div class="metric"><span class="metric-value">${data.brier_score}</span><span class="metric-label">Brier score</span></div>
+    <div class="metric"><span class="metric-value">${data.observations}</span><span class="metric-label">Resolved calls tracked</span></div>
+  </div>`;
+
+  const favBuckets = data.buckets.filter((b) => bucketMidpoint(b.label) >= 50);
+  const longBuckets = data.buckets.filter((b) => bucketMidpoint(b.label) < 50);
+  if (favBuckets.length) html += renderBarSection("Favorites we flagged, by bucket", favBuckets, "favorite");
+  if (longBuckets.length) html += renderBarSection("Longshots we flagged, by bucket", longBuckets, "longshot");
+
+  trackRecordContentEl.innerHTML = html;
+}

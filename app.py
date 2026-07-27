@@ -7,6 +7,9 @@ Run with: python app.py, then open http://127.0.0.1:5000
 from flask import Flask, jsonify, render_template, request
 
 from analyzer import build_signals
+from backtest import run_backtest, get_calibration_summary
+from momentum import record_scan, compute_momentum, latest_momentum
+from resolution_tracker import check_resolutions, get_tracking_status
 
 app = Flask(__name__)
 
@@ -40,12 +43,54 @@ def api_scan():
     )
     _last_result["signals"] = signals
     _last_result["meta"] = meta
-    return jsonify({"signals": signals, "meta": meta})
+
+    scan_id = record_scan(signals, meta)
+    momentum = compute_momentum(scan_id)
+
+    return jsonify({"signals": signals, "meta": meta, "momentum": momentum})
 
 
 @app.route("/api/last")
 def api_last():
     return jsonify(_last_result)
+
+
+@app.route("/api/momentum")
+def api_momentum():
+    """Diff the two most recent persisted scans without running a new live scan."""
+    return jsonify(latest_momentum())
+
+
+@app.route("/api/calibration")
+def api_calibration():
+    return jsonify(get_calibration_summary(source="historical_backtest"))
+
+
+@app.route("/api/calibration/run", methods=["POST"])
+def api_calibration_run():
+    try:
+        max_markets = int(request.args.get("max_markets", 250))
+        min_volume = float(request.args.get("min_volume", 5000))
+    except ValueError:
+        return jsonify({"error": "invalid query parameters"}), 400
+
+    max_markets = min(max(max_markets, 10), 600)
+    result = run_backtest(max_markets=max_markets, min_volume=min_volume)
+    return jsonify({**result, "summary": get_calibration_summary(source="historical_backtest")})
+
+
+@app.route("/api/track_record")
+def api_track_record():
+    return jsonify({
+        **get_calibration_summary(source="live_tracking"),
+        "tracking_status": get_tracking_status(),
+    })
+
+
+@app.route("/api/track_record/refresh", methods=["POST"])
+def api_track_record_refresh():
+    result = check_resolutions()
+    return jsonify({**result, "summary": get_calibration_summary(source="live_tracking")})
 
 
 if __name__ == "__main__":

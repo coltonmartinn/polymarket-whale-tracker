@@ -12,11 +12,16 @@ Note: Polymarket Global is geo-blocked to US persons for trading. Polymarket US 
 
 ## Project layout
 
-- `polymarket_client.py` -- thin wrapper around the Gamma (`gamma-api.polymarket.com`) and Data (`data-api.polymarket.com`) APIs.
+- `polymarket_client.py` -- thin wrapper around the Gamma (`gamma-api.polymarket.com`), Data (`data-api.polymarket.com`), and CLOB (`clob.polymarket.com`, price history only) APIs.
 - `analyzer.py` -- scans active markets, flags near-certain outcomes, pulls whale holders, computes USD exposure (shares &times; price) and a signal-strength score.
-- `app.py` -- Flask app serving the dashboard and a `/api/scan` endpoint.
-- `templates/`, `static/` -- the dashboard UI.
-- `collector.py` -- standalone CLI script that does the same scan and writes `whale_positions.csv`, for scripted/scheduled runs without the UI.
+- `db.py` -- shared SQLite store (`whale_tracker.db`, gitignored): every scan's whale snapshots, flagged-market resolution status, and calibration observations.
+- `momentum.py` -- persists each scan and diffs it against the previous one to detect whales entering, adding to, reducing, or exiting near-certain positions.
+- `backtest.py` -- historical calibration backtest: samples resolved binary markets, pulls their final-15-days price history, and checks whether near-certain prices were actually right.
+- `resolution_tracker.py` -- checks previously-flagged markets for resolution and records whether the whale-backed outcome won, building a live/forward version of the calibration check from our own scans.
+- `scheduled_scan.py` -- entry point for the recurring background scan (see Automation below).
+- `app.py` -- Flask app serving the dashboard and its API endpoints.
+- `templates/`, `static/` -- the dashboard UI (four tabs: Scanner, Momentum, Calibration Backtest, Live Track Record).
+- `collector.py` -- standalone CLI script that does a one-off scan and writes `whale_positions.csv`, independent of the DB/dashboard.
 
 ## Setup
 
@@ -25,7 +30,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Then open http://127.0.0.1:5000 and click **Scan Market**.
+Then open http://127.0.0.1:5000.
 
 For a one-off CSV export instead of the UI:
 
@@ -37,7 +42,21 @@ python collector.py
 
 For each near-certain outcome, whale positions above a configurable USD threshold are summed. The score weights both absolute whale dollars and what fraction of the market's visible order-book liquidity those wallets represent, so a large position in a thin market ranks higher than the same dollar amount in a deep one. Buckets: Low / Medium / High / Very High.
 
+## Does "near-certain" actually mean anything?
+
+The Calibration Backtest tab answers this independently of whale data: across 108 resolved binary markets (216 distinct near-certain calls, deduplicated to avoid overcounting markets that sat near-certain for weeks), favorites priced &ge;95% resolved correctly **96.3%** of the time and longshots priced &le;5% hit **3.7%** of the time -- both close to calibrated, Brier score 0.036. Re-run it any time from the dashboard; methodology and known scope limits (binary markets only, final 15 days before resolution, volume-filtered) are documented in `backtest.py`'s module docstring.
+
+## Automation
+
+A Windows Task Scheduler job (`PolymarketWhaleScanner`) runs `scheduled_scan.py` every 30 minutes: it scans, persists the snapshot, diffs it against the previous scan (feeding the Momentum tab), and checks previously-flagged markets for resolution (feeding the Live Track Record tab). Logs to `scheduled_scan.log`. Recreate it with:
+
+```
+$action = New-ScheduledTaskAction -Execute "<path to python.exe>" -Argument "scheduled_scan.py" -WorkingDirectory "<repo path>"
+$trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650)
+Register-ScheduledTask -TaskName "PolymarketWhaleScanner" -Action $action -Trigger $trigger
+```
+
 ## Roadmap
 
-- Snapshot-diffing across scans to detect whales *adding* to positions over time (stronger signal than a single snapshot).
+- Let the live track record accumulate (it starts empty by design) and compare whale-backed vs non-whale-backed near-certain markets' resolution accuracy once there's enough sample size.
 - Resolve market-mapping between Polymarket Global and Polymarket US before any execution logic is considered.

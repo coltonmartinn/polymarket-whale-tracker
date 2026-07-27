@@ -141,6 +141,7 @@ def build_signals(
                 "market": meta["question"],
                 "slug": meta["slug"],
                 "polymarket_url": f"https://polymarket.com/event/{meta['slug']}" if meta["slug"] else None,
+                "clob_token_id": outcome["clob_token_id"],
                 "outcome": outcome["outcome_name"],
                 "outcome_type": outcome_type,
                 "implied_probability": outcome["price"],

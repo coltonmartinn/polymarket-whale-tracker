@@ -103,10 +103,50 @@ body {
   line-height: 1.5;
 }
 
+.tabs {
+  max-width: 1200px;
+  margin: 4px auto 0;
+  padding: 0 24px;
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 12px 16px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
 .container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 8px 24px 60px;
+}
+
+.tab-panel.hidden { display: none; }
+
+.panel-intro {
+  padding: 20px 0 4px;
+}
+.panel-intro h2 {
+  font-size: 17px;
+  margin: 0 0 8px;
+}
+.panel-intro p {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+  margin: 0 0 14px;
+  max-width: 820px;
 }
 
 .controls {
@@ -172,13 +212,13 @@ body {
   margin-bottom: 20px;
   padding: 4px 4px 12px;
 }
-.summary .metric { display: flex; flex-direction: column; }
-.summary .metric-value {
+.summary .metric, .calib-stats-row .metric { display: flex; flex-direction: column; }
+.summary .metric-value, .calib-stats-row .metric-value {
   font-size: 22px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.summary .metric-label {
+.summary .metric-label, .calib-stats-row .metric-label {
   font-size: 12px;
   color: var(--text-faint);
   text-transform: uppercase;
@@ -290,6 +330,135 @@ body {
   margin-top: auto;
 }
 .card-link:hover { text-decoration: underline; }
+
+.momentum-list { display: flex; flex-direction: column; gap: 8px; }
+
+.momentum-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+
+.momentum-main { flex: 1; min-width: 0; }
+.momentum-market {
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.momentum-detail { font-size: 12px; color: var(--text-faint); margin-top: 2px; }
+
+.momentum-delta {
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.momentum-delta.positive { color: var(--favorite); }
+.momentum-delta.negative { color: var(--veryhigh); }
+
+.momentum-type.type-new_entry { color: var(--accent); background: var(--accent-dim); }
+.momentum-type.type-increased { color: var(--favorite); background: var(--favorite-bg); }
+.momentum-type.type-decreased { color: var(--high); background: rgba(226,160,63,0.15); }
+.momentum-type.type-exited { color: var(--veryhigh); background: var(--danger-bg); }
+
+.calib-stats-row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 4px 0 20px;
+}
+
+.calib-note {
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.6;
+  max-width: 760px;
+  margin: 0 0 18px;
+}
+
+.calib-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-faint);
+  margin: 22px 0 10px;
+}
+
+.calib-bar-row {
+  display: grid;
+  grid-template-columns: 66px 1fr 130px;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 0;
+}
+
+.calib-bar-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.calib-bar-track {
+  position: relative;
+  height: 14px;
+  background: var(--bg-elevated);
+  border-radius: 100px;
+  border: 1px solid var(--border);
+}
+
+.calib-bar-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  border-radius: 100px;
+}
+.calib-bar-fill.favorite { background: var(--favorite); }
+.calib-bar-fill.longshot { background: var(--longshot); }
+
+.calib-bar-target {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  background: var(--text);
+  opacity: 0.55;
+}
+
+.calib-bar-meta {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.calib-legend {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin: 10px 0 4px;
+}
+.calib-legend .tick-sample {
+  display: inline-block;
+  width: 2px;
+  height: 11px;
+  background: var(--text);
+  opacity: 0.55;
+  vertical-align: middle;
+  margin: 0 4px;
+}
+
+.pending-note {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  padding: 6px 0 18px;
+}
 
 @media (max-width: 640px) {
   .topbar-inner { flex-direction: column; align-items: stretch; }

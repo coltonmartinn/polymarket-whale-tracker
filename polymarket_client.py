@@ -14,8 +14,14 @@ import requests
 
 GAMMA_URL = "https://gamma-api.polymarket.com"
 DATA_URL = "https://data-api.polymarket.com"
+CLOB_URL = "https://clob.polymarket.com"
 
 REQUEST_TIMEOUT = 15
+
+# Verified live (2026-07-27): /prices-history rejects any startTs/endTs window
+# longer than 15 days, regardless of fidelity -- returns 400 with an empty
+# body. Callers must chunk longer ranges themselves.
+MAX_HISTORY_WINDOW_DAYS = 15
 
 
 def get_active_markets(max_markets=200, page_size=100, request_pause=0.15):
@@ -92,6 +98,55 @@ def extract_high_probability_outcomes(market, price_threshold):
                 "clob_token_id": token_ids[i],
             })
     return hits
+
+
+def get_closed_markets(max_markets=300, page_size=100, request_pause=0.15):
+    """Page through closed (resolved) markets from the Gamma API, newest first."""
+    markets = []
+    offset = 0
+    while len(markets) < max_markets:
+        resp = requests.get(
+            f"{GAMMA_URL}/markets",
+            params={
+                "closed": "true",
+                "limit": page_size,
+                "offset": offset,
+                "order": "volumeNum",
+                "ascending": "false",
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+        resp.raise_for_status()
+        batch = resp.json()
+        if not batch:
+            break
+        markets.extend(batch)
+        offset += page_size
+        if len(batch) < page_size:
+            break
+        time.sleep(request_pause)
+    return markets[:max_markets]
+
+
+def get_price_history(token_id, start_ts, end_ts, fidelity=180):
+    """
+    Price history for one outcome token between start_ts and end_ts (unix
+    seconds). Returns a list of {"t": unix_seconds, "p": price} points.
+    Caller must keep (end_ts - start_ts) <= MAX_HISTORY_WINDOW_DAYS.
+    """
+    resp = requests.get(
+        f"{CLOB_URL}/prices-history",
+        params={
+            "market": token_id,
+            "startTs": int(start_ts),
+            "endTs": int(end_ts),
+            "fidelity": fidelity,
+        },
+        timeout=REQUEST_TIMEOUT,
+    )
+    if resp.status_code != 200:
+        return []
+    return resp.json().get("history", [])
 
 
 def get_top_holders(condition_id, limit=10):

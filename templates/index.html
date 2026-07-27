@@ -25,63 +25,104 @@
     "Implied probability" is the market's own price &mdash; this tool does not predict outcomes, it surfaces where whale money sits relative to that price.
   </div>
 
+  <nav class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="scanner">Scanner</button>
+    <button class="tab-btn" data-tab="momentum">Momentum</button>
+    <button class="tab-btn" data-tab="calibration">Calibration Backtest</button>
+    <button class="tab-btn" data-tab="track-record">Live Track Record</button>
+  </nav>
+
   <main class="container">
-    <section class="controls" id="controls">
-      <div class="control">
-        <label for="price-threshold">Certainty threshold</label>
-        <input type="range" id="price-threshold" min="50" max="99" value="95" />
-        <span class="control-value" id="price-threshold-val">&ge; 95%</span>
-      </div>
-      <div class="control">
-        <label for="min-whale">Min whale position</label>
-        <select id="min-whale">
-          <option value="500">$500+</option>
-          <option value="1000" selected>$1,000+</option>
-          <option value="5000">$5,000+</option>
-          <option value="25000">$25,000+</option>
-        </select>
-      </div>
-      <div class="control">
-        <label for="max-markets">Markets to scan</label>
-        <select id="max-markets">
-          <option value="100">100 (fast)</option>
-          <option value="200" selected>200</option>
-          <option value="400">400</option>
-        </select>
-      </div>
-      <div class="control">
-        <label for="sort-by">Sort by</label>
-        <select id="sort-by">
-          <option value="score" selected>Signal strength</option>
-          <option value="whale_usd_total">Whale $ total</option>
-          <option value="implied_probability">Implied probability</option>
-          <option value="pct_of_liquidity">% of market liquidity</option>
-        </select>
-      </div>
-      <div class="control">
-        <label for="type-filter">Show</label>
-        <select id="type-filter">
-          <option value="all" selected>Favorites + Longshots</option>
-          <option value="favorite">Favorites only</option>
-          <option value="longshot">Longshots only</option>
-        </select>
-      </div>
-      <div class="control control-search">
-        <label for="search">Search</label>
-        <input type="text" id="search" placeholder="Search markets&hellip;" />
-      </div>
-    </section>
 
-    <section id="status" class="status hidden"></section>
+    <div id="tab-scanner" class="tab-panel">
+      <section class="controls" id="controls">
+        <div class="control">
+          <label for="price-threshold">Certainty threshold</label>
+          <input type="range" id="price-threshold" min="50" max="99" value="95" />
+          <span class="control-value" id="price-threshold-val">&ge; 95%</span>
+        </div>
+        <div class="control">
+          <label for="min-whale">Min whale position</label>
+          <select id="min-whale">
+            <option value="500">$500+</option>
+            <option value="1000" selected>$1,000+</option>
+            <option value="5000">$5,000+</option>
+            <option value="25000">$25,000+</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="max-markets">Markets to scan</label>
+          <select id="max-markets">
+            <option value="100">100 (fast)</option>
+            <option value="200" selected>200</option>
+            <option value="400">400</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="sort-by">Sort by</label>
+          <select id="sort-by">
+            <option value="score" selected>Signal strength</option>
+            <option value="whale_usd_total">Whale $ total</option>
+            <option value="implied_probability">Implied probability</option>
+            <option value="pct_of_liquidity">% of market liquidity</option>
+          </select>
+        </div>
+        <div class="control">
+          <label for="type-filter">Show</label>
+          <select id="type-filter">
+            <option value="all" selected>Favorites + Longshots</option>
+            <option value="favorite">Favorites only</option>
+            <option value="longshot">Longshots only</option>
+          </select>
+        </div>
+        <div class="control control-search">
+          <label for="search">Search</label>
+          <input type="text" id="search" placeholder="Search markets&hellip;" />
+        </div>
+      </section>
 
-    <section id="summary" class="summary hidden"></section>
+      <section id="status" class="status hidden"></section>
 
-    <section id="results" class="results"></section>
+      <section id="summary" class="summary hidden"></section>
 
-    <section id="empty-state" class="empty-state">
-      <p>No scan yet. Click <strong>Scan Market</strong> to pull live data from Polymarket.</p>
-      <p class="empty-hint">A full scan of 200 markets typically takes 15&ndash;30 seconds.</p>
-    </section>
+      <section id="results" class="results"></section>
+
+      <section id="empty-state" class="empty-state">
+        <p>No scan yet. Click <strong>Scan Market</strong> to pull live data from Polymarket.</p>
+        <p class="empty-hint">A full scan of 200 markets typically takes 15&ndash;30 seconds. Every scan is saved, which is what powers the Momentum and Live Track Record tabs.</p>
+      </section>
+    </div>
+
+    <div id="tab-momentum" class="tab-panel hidden">
+      <section class="panel-intro">
+        <h2>Whale momentum</h2>
+        <p>Diffs the two most recent saved scans to show whales adding to, reducing, entering, or exiting near-certain positions. A scheduled task runs a scan every 30 minutes in the background, so this fills in even when the dashboard is closed.</p>
+        <button id="momentum-refresh-btn" class="btn-secondary">Refresh</button>
+      </section>
+      <section id="momentum-status" class="status hidden"></section>
+      <section id="momentum-list" class="momentum-list"></section>
+    </div>
+
+    <div id="tab-calibration" class="tab-panel hidden">
+      <section class="panel-intro">
+        <h2>Historical calibration backtest</h2>
+        <p>When Polymarket prices something &ge;95% or &le;5% in the final 15 days before it resolves, how often is it actually right? Sampled from already-resolved, binary, non-trivial-volume markets. This validates the core premise &mdash; separately from whale activity &mdash; before treating a "near-certain" price as meaningful.</p>
+        <button id="calibration-run-btn" class="btn-secondary">Run new backtest (~30&ndash;60s)</button>
+      </section>
+      <section id="calibration-status" class="status hidden"></section>
+      <section id="calibration-content"></section>
+    </div>
+
+    <div id="tab-track-record" class="tab-panel hidden">
+      <section class="panel-intro">
+        <h2>Live track record</h2>
+        <p>Every near-certain outcome this scanner has ever flagged is tracked until it resolves. This is the forward-looking version of the calibration backtest &mdash; built from our own calls, not history &mdash; and it starts empty. It grows as flagged markets resolve over the coming days and weeks.</p>
+        <button id="track-record-refresh-btn" class="btn-secondary">Check for new resolutions</button>
+      </section>
+      <section id="track-record-status" class="status hidden"></section>
+      <section id="track-record-content"></section>
+    </div>
+
   </main>
 
   <template id="signal-card-template">
@@ -121,6 +162,17 @@
       <p class="card-recommendation"></p>
       <a class="card-link" href="#" target="_blank" rel="noopener">View market on Polymarket &#8594;</a>
     </article>
+  </template>
+
+  <template id="momentum-row-template">
+    <div class="momentum-row">
+      <span class="badge momentum-type"></span>
+      <div class="momentum-main">
+        <div class="momentum-market"></div>
+        <div class="momentum-detail"></div>
+      </div>
+      <div class="momentum-delta"></div>
+    </div>
   </template>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
