@@ -51,12 +51,27 @@ The Calibration Backtest tab answers this independently of whale data: across 10
 
 ## Automation
 
-A Windows Task Scheduler job (`PolymarketWhaleScanner`) runs `scheduled_scan.py` every 30 minutes: it scans, persists the snapshot, diffs it against the previous scan (feeding the Momentum tab), and checks previously-flagged markets for resolution (feeding the Live Track Record tab). Logs to `scheduled_scan.log`. Recreate it with:
+A Windows Task Scheduler job (`PolymarketWhaleScanner`) runs `scheduled_scan.py` every 30 minutes: it scans, persists the snapshot, diffs it against the previous scan (feeding the Momentum tab), and checks previously-flagged markets for resolution (feeding the Live Track Record tab and settling any resolved demo bets). Logs to `scheduled_scan.log`. Recreate it with:
 
 ```
 $action = New-ScheduledTaskAction -Execute "<path to python.exe>" -Argument "scheduled_scan.py" -WorkingDirectory "<repo path>"
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepetitionDuration (New-TimeSpan -Days 3650)
 Register-ScheduledTask -TaskName "PolymarketWhaleScanner" -Action $action -Trigger $trigger
+```
+
+A second Task Scheduler job (`PolymarketWhaleDashboard`) starts `app.py` at logon, since it's otherwise just a manually-started background process that doesn't survive a reboot/logoff -- the dashboard being unreachable ("Failed to fetch" on every request) usually means this. Check it with `Get-ScheduledTask -TaskName PolymarketWhaleDashboard | Get-ScheduledTaskInfo`, or recreate it with:
+
+```
+$action = New-ScheduledTaskAction -Execute "<path to python.exe>" -Argument "app.py" -WorkingDirectory "<repo path>"
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User "<username>"
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) -MultipleInstances IgnoreNew
+$principal = New-ScheduledTaskPrincipal -UserId "<username>" -LogonType Interactive -RunLevel Limited
+Register-ScheduledTask -TaskName "PolymarketWhaleDashboard" -Action $action -Trigger $trigger -Settings $settings -Principal $principal
+# Then, since New-ScheduledTaskSettingsSet has no switch to negate these, flip them off directly so the task isn't stopped/blocked on battery power:
+$task = Get-ScheduledTask -TaskName "PolymarketWhaleDashboard"
+$task.Settings.DisallowStartIfOnBatteries = $false
+$task.Settings.StopIfGoingOnBatteries = $false
+Set-ScheduledTask -TaskName "PolymarketWhaleDashboard" -Settings $task.Settings
 ```
 
 ## Whale leaderboard
